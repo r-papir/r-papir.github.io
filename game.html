@@ -31,7 +31,7 @@
             margin-bottom: 15px;
             font-size: 16px;
             padding: 10px;
-            background-color: #2a2a2a;
+            background-color: #ffffff;
             border-radius: 5px;
         }
 
@@ -61,89 +61,21 @@
             box-sizing: border-box;
         }
 
-        #controls {
-            margin-top: 20px;
-            font-size: 14px;
-            color: #aaa;
+        @keyframes flashGreen {
+            0%, 100% { border-color: #666; }
+            25% { border-color: #4CAF50; }
+            50% { border-color: #4CAF50; }
+            75% { border-color: #4CAF50; }
         }
 
-        #message {
-            margin-top: 15px;
-            font-size: 16px;
-            height: 25px;
-            color: #4CAF50;
-        }
-
-        #instructions {
-            margin-top: 20px;
-            max-width: 500px;
-            text-align: left;
-            color: #aaa;
-            font-size: 13px;
-            line-height: 1.6;
-        }
-
-        .color-legend {
-            margin-top: 20px;
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .legend-color {
-            width: 20px;
-            height: 20px;
-            border: 1px solid #666;
+        .win-flash {
+            animation: flashGreen 0.6s ease-in-out 2;
         }
     </style>
 </head>
 <body>
     <div id="game-container">
-        <div id="level-info">Level: <span id="current-level">1</span> | Moves: <span id="move-count">0</span></div>
-        <div id="avatar-color-display">
-            Avatar Color: <span id="color-name">White</span>
-            <div id="color-indicator"></div>
-        </div>
         <div id="grid"></div>
-        <div id="message"></div>
-        <div id="controls">Use Arrow Keys to move | R to restart level</div>
-
-        <div class="color-legend">
-            <div class="legend-item">
-                <div class="legend-color" style="background-color: #FFFFFF;"></div>
-                <span>Avatar (White)</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background-color: #2196F3;"></div>
-                <span>Blue Corner/Goal</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background-color: #FFEB3B;"></div>
-                <span>Yellow Corner</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background-color: #4CAF50;"></div>
-                <span>Green Corner (Reset)</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background-color: #E91E63;"></div>
-                <span>Pink Corner</span>
-            </div>
-        </div>
-
-        <div id="instructions">
-            <strong>How to Play:</strong><br>
-            Touch the colored corner blocks to change your avatar's color. The goal is to turn your avatar
-            BLUE by touching the blue corner, then touch the blue box in the center to win.
-            WARNING: Green resets you back to white! You must go directly from white→blue→center to win.
-        </div>
     </div>
 
     <script>
@@ -192,7 +124,6 @@
         // Load level
         function loadLevel(levelIndex) {
             if (levelIndex >= levels.length) {
-                showMessage('Congratulations! You completed all levels!');
                 return;
             }
 
@@ -204,20 +135,7 @@
             gameState.colorHistory = ['white'];
             gameState.moveCount = 0;
 
-            document.getElementById('current-level').textContent = levelIndex + 1;
-            document.getElementById('move-count').textContent = 0;
-            updateColorDisplay();
-            showMessage('');
-
             renderGrid();
-        }
-
-        // Update color display
-        function updateColorDisplay() {
-            const colorName = gameState.avatarColor.charAt(0).toUpperCase() + gameState.avatarColor.slice(1);
-            document.getElementById('color-name').textContent = colorName;
-            const indicator = document.getElementById('color-indicator');
-            indicator.style.backgroundColor = COLORS[gameState.avatarColor.toUpperCase()];
         }
 
         // Get color at position
@@ -262,9 +180,36 @@
             }
         }
 
+        // Check if position is a corner block
+        function isCornerBlock(x, y) {
+            return (x === 0 && y === 0) || (x === 5 && y === 0) ||
+                   (x === 0 && y === 5) || (x === 5 && y === 5);
+        }
+
+        // Check if avatar is adjacent to a corner
+        function checkAdjacentCorners(x, y) {
+            // Check all 4 adjacent positions
+            const adjacents = [
+                { x: x - 1, y: y },  // left
+                { x: x + 1, y: y },  // right
+                { x: x, y: y - 1 },  // up
+                { x: x, y: y + 1 }   // down
+            ];
+
+            for (const adj of adjacents) {
+                const colorAt = getColorAtPosition(adj.x, adj.y);
+                if (colorAt && colorAt !== 'center') {
+                    return colorAt;
+                }
+            }
+            return null;
+        }
+
         // Check if position is valid
         function isValidPosition(x, y) {
             if (x < 0 || x >= 6 || y < 0 || y >= 6) return false;
+            // Cannot move onto corner blocks
+            if (isCornerBlock(x, y)) return false;
             return true;
         }
 
@@ -319,42 +264,33 @@
             gameState.avatarPos.y = newY;
             gameState.moveCount++;
 
-            // Check if avatar touched a color-changing corner
-            const colorAt = getColorAtPosition(newX, newY);
+            // Check if avatar is now adjacent to a color-changing corner
+            const adjacentColor = checkAdjacentCorners(newX, newY);
 
-            if (colorAt && colorAt !== 'center') {
-                const oldColor = gameState.avatarColor;
-                gameState.avatarColor = colorAt;
-                gameState.colorHistory.push(colorAt);
-                updateColorDisplay();
-
-                if (colorAt === 'green') {
-                    showMessage('Reset to white!');
-                    setTimeout(() => showMessage(''), 1000);
-                }
+            if (adjacentColor) {
+                gameState.avatarColor = adjacentColor;
+                gameState.colorHistory.push(adjacentColor);
             }
 
-            document.getElementById('move-count').textContent = gameState.moveCount;
+            // Check if on center position
+            const colorAt = getColorAtPosition(newX, newY);
+
             renderGrid();
 
             // Check win condition when on center
             if (colorAt === 'center') {
                 if (checkWinCondition()) {
-                    showMessage('Level Complete! Advancing...');
+                    // Flash the grid border green
+                    const grid = document.getElementById('grid');
+                    grid.classList.add('win-flash');
+
                     setTimeout(() => {
+                        grid.classList.remove('win-flash');
                         currentLevelIndex++;
                         loadLevel(currentLevelIndex);
-                    }, 1500);
-                } else {
-                    showMessage('Wrong! You must go white→blue→center!');
-                    setTimeout(() => showMessage(''), 2000);
+                    }, 1200);
                 }
             }
-        }
-
-        // Show message
-        function showMessage(msg) {
-            document.getElementById('message').textContent = msg;
         }
 
         // Handle keyboard input
@@ -382,8 +318,6 @@
                 case 'R':
                     e.preventDefault();
                     loadLevel(currentLevelIndex);
-                    showMessage('Level restarted');
-                    setTimeout(() => showMessage(''), 1000);
                     break;
             }
         });
