@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARC-Style Grid Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        #game-container {
+            text-align: center;
+        }
+
+        #level-info {
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+
+        #grid {
+            display: inline-grid;
+            grid-template-columns: repeat(6, 60px);
+            grid-template-rows: repeat(6, 60px);
+            gap: 2px;
+            background-color: #333;
+            padding: 2px;
+            border: 3px solid #666;
+        }
+
+        .cell {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #444;
+            box-sizing: border-box;
+        }
+
+        #controls {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        #message {
+            margin-top: 15px;
+            font-size: 16px;
+            height: 25px;
+            color: #4CAF50;
+        }
+
+        #instructions {
+            margin-top: 20px;
+            max-width: 500px;
+            text-align: left;
+            color: #aaa;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .color-legend {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="level-info">Level: <span id="current-level">1</span> | Moves: <span id="move-count">0</span></div>
+        <div id="grid"></div>
+        <div id="message"></div>
+        <div id="controls">Use Arrow Keys to move | R to restart level</div>
+
+        <div class="color-legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #2196F3;"></div>
+                <span>Player</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #4CAF50;"></div>
+                <span>Goal</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #333;"></div>
+                <span>Wall</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #FF9800;"></div>
+                <span>Box</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #9C27B0;"></div>
+                <span>Target</span>
+            </div>
+        </div>
+
+        <div id="instructions">
+            <strong>How to Play:</strong><br>
+            Move the blue player to the green goal. Push orange boxes onto purple targets to unlock paths.
+            Time only advances when you press an arrow key. Press R to restart the current level.
+        </div>
+    </div>
+
+    <script>
+        // Color definitions
+        const COLORS = {
+            EMPTY: '#0a0a0a',
+            WALL: '#333333',
+            PLAYER: '#2196F3',
+            GOAL: '#4CAF50',
+            BOX: '#FF9800',
+            TARGET: '#9C27B0',
+            BOX_ON_TARGET: '#FFB74D'
+        };
+
+        // Game state
+        let levels = [];
+        let currentLevelIndex = 0;
+        let gameState = {
+            grid: [],
+            playerPos: { x: 0, y: 0 },
+            boxes: [],
+            targets: [],
+            goalPos: { x: 0, y: 0 },
+            moveCount: 0
+        };
+
+        // Initialize grid display
+        function initGrid() {
+            const gridElement = document.getElementById('grid');
+            gridElement.innerHTML = '';
+            for (let y = 0; y < 6; y++) {
+                for (let x = 0; x < 6; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.id = `cell-${x}-${y}`;
+                    gridElement.appendChild(cell);
+                }
+            }
+        }
+
+        // Load level from JSON
+        function loadLevel(levelIndex) {
+            if (levelIndex >= levels.length) {
+                showMessage('Congratulations! You completed all levels!');
+                return;
+            }
+
+            const level = levels[levelIndex];
+            gameState.grid = level.grid.map(row => [...row]);
+            gameState.playerPos = { ...level.player };
+            gameState.goalPos = { ...level.goal };
+            gameState.boxes = level.boxes ? level.boxes.map(b => ({ ...b })) : [];
+            gameState.targets = level.targets ? level.targets.map(t => ({ ...t })) : [];
+            gameState.moveCount = 0;
+
+            document.getElementById('current-level').textContent = levelIndex + 1;
+            document.getElementById('move-count').textContent = 0;
+            showMessage('');
+
+            renderGrid();
+        }
+
+        // Render the grid
+        function renderGrid() {
+            for (let y = 0; y < 6; y++) {
+                for (let x = 0; x < 6; x++) {
+                    const cell = document.getElementById(`cell-${x}-${y}`);
+                    const cellType = gameState.grid[y][x];
+
+                    // Base color from grid
+                    let color = COLORS.EMPTY;
+                    if (cellType === 1) color = COLORS.WALL;
+
+                    // Check for targets
+                    if (gameState.targets.some(t => t.x === x && t.y === y)) {
+                        color = COLORS.TARGET;
+                    }
+
+                    // Check for boxes
+                    const boxOnCell = gameState.boxes.some(b => b.x === x && b.y === y);
+                    if (boxOnCell) {
+                        const targetOnCell = gameState.targets.some(t => t.x === x && t.y === y);
+                        color = targetOnCell ? COLORS.BOX_ON_TARGET : COLORS.BOX;
+                    }
+
+                    // Check for goal
+                    if (gameState.goalPos.x === x && gameState.goalPos.y === y) {
+                        color = COLORS.GOAL;
+                    }
+
+                    // Check for player (always on top)
+                    if (gameState.playerPos.x === x && gameState.playerPos.y === y) {
+                        color = COLORS.PLAYER;
+                    }
+
+                    cell.style.backgroundColor = color;
+                }
+            }
+        }
+
+        // Check if position is valid (not a wall and within bounds)
+        function isValidPosition(x, y) {
+            if (x < 0 || x >= 6 || y < 0 || y >= 6) return false;
+            return gameState.grid[y][x] !== 1;
+        }
+
+        // Find box at position
+        function getBoxAt(x, y) {
+            return gameState.boxes.find(b => b.x === x && b.y === y);
+        }
+
+        // Check if all boxes are on targets
+        function checkWinCondition() {
+            if (gameState.boxes.length === 0) {
+                // No boxes - just reach the goal
+                return gameState.playerPos.x === gameState.goalPos.x &&
+                       gameState.playerPos.y === gameState.goalPos.y;
+            }
+
+            // All boxes must be on targets
+            const allBoxesOnTargets = gameState.boxes.every(box =>
+                gameState.targets.some(target => target.x === box.x && target.y === box.y)
+            );
+
+            // And player must reach goal
+            const playerOnGoal = gameState.playerPos.x === gameState.goalPos.x &&
+                                gameState.playerPos.y === gameState.goalPos.y;
+
+            return allBoxesOnTargets && playerOnGoal;
+        }
+
+        // Move player
+        function movePlayer(dx, dy) {
+            const newX = gameState.playerPos.x + dx;
+            const newY = gameState.playerPos.y + dy;
+
+            // Check if there's a box at the new position
+            const box = getBoxAt(newX, newY);
+
+            if (box) {
+                // Try to push the box
+                const boxNewX = newX + dx;
+                const boxNewY = newY + dy;
+
+                // Can't push if there's another box or wall in the way
+                if (!isValidPosition(boxNewX, boxNewY) || getBoxAt(boxNewX, boxNewY)) {
+                    return; // Can't move
+                }
+
+                // Push the box
+                box.x = boxNewX;
+                box.y = boxNewY;
+            } else if (!isValidPosition(newX, newY)) {
+                return; // Can't move into wall
+            }
+
+            // Move player
+            gameState.playerPos.x = newX;
+            gameState.playerPos.y = newY;
+            gameState.moveCount++;
+
+            document.getElementById('move-count').textContent = gameState.moveCount;
+            renderGrid();
+
+            // Check win condition
+            if (checkWinCondition()) {
+                showMessage('Level Complete! Press any arrow key for next level.');
+                setTimeout(() => {
+                    currentLevelIndex++;
+                    loadLevel(currentLevelIndex);
+                }, 1500);
+            }
+        }
+
+        // Show message
+        function showMessage(msg) {
+            document.getElementById('message').textContent = msg;
+        }
+
+        // Handle keyboard input
+        document.addEventListener('keydown', (e) => {
+            if (currentLevelIndex >= levels.length) return;
+
+            switch(e.key) {
+                case 'ArrowUp':
+                    e.preventDefault();
+                    movePlayer(0, -1);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    movePlayer(0, 1);
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    movePlayer(-1, 0);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    movePlayer(1, 0);
+                    break;
+                case 'r':
+                case 'R':
+                    e.preventDefault();
+                    loadLevel(currentLevelIndex);
+                    showMessage('Level restarted');
+                    break;
+            }
+        });
+
+        // Level data embedded directly
+        levels = [
+            {
+                id: 1,
+                name: "Tutorial",
+                grid: [
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0]
+                ],
+                player: { x: 0, y: 0 },
+                goal: { x: 5, y: 5 },
+                boxes: [],
+                targets: []
+            },
+            {
+                id: 2,
+                name: "First Wall",
+                grid: [
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0],
+                    [0, 0, 0, 1, 0, 0],
+                    [0, 0, 0, 1, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0]
+                ],
+                player: { x: 1, y: 1 },
+                goal: { x: 5, y: 1 },
+                boxes: [],
+                targets: []
+            },
+            {
+                id: 3,
+                name: "The Maze",
+                grid: [
+                    [0, 1, 0, 0, 0, 0],
+                    [0, 1, 0, 1, 1, 0],
+                    [0, 0, 0, 0, 1, 0],
+                    [0, 1, 1, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 1, 1, 1, 0]
+                ],
+                player: { x: 0, y: 0 },
+                goal: { x: 5, y: 5 },
+                boxes: [],
+                targets: []
+            },
+            {
+                id: 4,
+                name: "First Box",
+                grid: [
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 1, 1, 1, 1, 0],
+                    [0, 1, 0, 0, 1, 0],
+                    [0, 1, 0, 0, 1, 0],
+                    [0, 1, 1, 1, 1, 0],
+                    [0, 0, 0, 0, 0, 0]
+                ],
+                player: { x: 2, y: 2 },
+                goal: { x: 2, y: 2 },
+                boxes: [{ x: 3, y: 2 }],
+                targets: [{ x: 2, y: 3 }]
+            },
+            {
+                id: 5,
+                name: "Push Puzzle",
+                grid: [
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 0]
+                ],
+                player: { x: 0, y: 0 },
+                goal: { x: 5, y: 5 },
+                boxes: [
+                    { x: 2, y: 2 },
+                    { x: 3, y: 3 }
+                ],
+                targets: [
+                    { x: 2, y: 4 },
+                    { x: 3, y: 1 }
+                ]
+            },
+            {
+                id: 6,
+                name: "Corridor",
+                grid: [
+                    [0, 0, 0, 1, 0, 0],
+                    [1, 1, 0, 1, 0, 1],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [1, 0, 1, 0, 1, 1],
+                    [0, 0, 1, 0, 0, 0]
+                ],
+                player: { x: 0, y: 0 },
+                goal: { x: 5, y: 5 },
+                boxes: [{ x: 2, y: 2 }],
+                targets: [{ x: 3, y: 3 }]
+            },
+            {
+                id: 7,
+                name: "Three Boxes",
+                grid: [
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 1, 1, 0, 0],
+                    [0, 0, 1, 1, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0]
+                ],
+                player: { x: 0, y: 0 },
+                goal: { x: 5, y: 0 },
+                boxes: [
+                    { x: 1, y: 1 },
+                    { x: 4, y: 1 },
+                    { x: 1, y: 4 }
+                ],
+                targets: [
+                    { x: 0, y: 5 },
+                    { x: 5, y: 5 },
+                    { x: 4, y: 4 }
+                ]
+            },
+            {
+                id: 8,
+                name: "The Chamber",
+                grid: [
+                    [1, 1, 1, 1, 1, 0],
+                    [1, 0, 0, 0, 1, 0],
+                    [1, 0, 0, 0, 1, 0],
+                    [1, 0, 0, 0, 1, 0],
+                    [1, 1, 0, 1, 1, 0],
+                    [0, 0, 0, 0, 0, 0]
+                ],
+                player: { x: 1, y: 1 },
+                goal: { x: 1, y: 1 },
+                boxes: [
+                    { x: 2, y: 1 },
+                    { x: 2, y: 2 }
+                ],
+                targets: [
+                    { x: 3, y: 2 },
+                    { x: 3, y: 3 }
+                ]
+            },
+            {
+                id: 9,
+                name: "Symmetry",
+                grid: [
+                    [0, 1, 0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [1, 0, 1, 1, 0, 1],
+                    [1, 0, 1, 1, 0, 1],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 1, 0]
+                ],
+                player: { x: 0, y: 1 },
+                goal: { x: 5, y: 4 },
+                boxes: [
+                    { x: 1, y: 1 },
+                    { x: 4, y: 1 },
+                    { x: 1, y: 4 },
+                    { x: 4, y: 4 }
+                ],
+                targets: [
+                    { x: 0, y: 0 },
+                    { x: 5, y: 0 },
+                    { x: 0, y: 5 },
+                    { x: 5, y: 5 }
+                ]
+            },
+            {
+                id: 10,
+                name: "Final Challenge",
+                grid: [
+                    [0, 0, 0, 1, 0, 0],
+                    [0, 1, 0, 1, 0, 1],
+                    [0, 1, 0, 0, 0, 1],
+                    [1, 0, 0, 0, 1, 0],
+                    [0, 0, 1, 0, 1, 0],
+                    [0, 1, 0, 0, 0, 0]
+                ],
+                player: { x: 0, y: 0 },
+                goal: { x: 2, y: 2 },
+                boxes: [
+                    { x: 2, y: 1 },
+                    { x: 1, y: 2 },
+                    { x: 3, y: 3 }
+                ],
+                targets: [
+                    { x: 4, y: 0 },
+                    { x: 0, y: 4 },
+                    { x: 5, y: 5 }
+                ]
+            }
+        ];
+
+        // Start game
+        initGrid();
+        loadLevel(0);
+    </script>
+</body>
+</html>
