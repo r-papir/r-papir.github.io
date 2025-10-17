@@ -20,6 +20,39 @@
 
         #game-container {
             text-align: center;
+            position: relative;
+        }
+
+        #ripple-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            border: 3px solid #4CAF50;
+            opacity: 0;
+        }
+
+        @keyframes ripple {
+            0% {
+                width: 0;
+                height: 0;
+                opacity: 0.8;
+            }
+            100% {
+                width: 400px;
+                height: 400px;
+                opacity: 0;
+            }
         }
 
         #level-info {
@@ -49,32 +82,23 @@
             grid-template-columns: repeat(6, 60px);
             grid-template-rows: repeat(6, 60px);
             gap: 2px;
-            background-color: #ffffff;
+            background-color: #000000;
             padding: 2px;
-            border: 3px solid #666;
+            border: 3px solid #000000;
         }
 
         .cell {
             width: 60px;
             height: 60px;
-            border: 1px solid #444;
+            border: 1px solid #000000;
             box-sizing: border-box;
         }
 
-        @keyframes flashGreen {
-            0%, 100% { border-color: #666; }
-            25% { border-color: #4CAF50; }
-            50% { border-color: #4CAF50; }
-            75% { border-color: #4CAF50; }
-        }
-
-        .win-flash {
-            animation: flashGreen 0.6s ease-in-out 2;
-        }
     </style>
 </head>
 <body>
     <div id="game-container">
+        <div id="ripple-container"></div>
         <div id="grid"></div>
     </div>
 
@@ -280,16 +304,34 @@
             // Check win condition when on center
             if (colorAt === 'center') {
                 if (checkWinCondition()) {
-                    // Flash the grid border green
-                    const grid = document.getElementById('grid');
-                    grid.classList.add('win-flash');
+                    // Create ripple effect
+                    createRipple();
 
                     setTimeout(() => {
-                        grid.classList.remove('win-flash');
                         currentLevelIndex++;
                         loadLevel(currentLevelIndex);
                     }, 1200);
                 }
+            }
+        }
+
+        // Create ripple effect on win
+        function createRipple() {
+            const container = document.getElementById('ripple-container');
+
+            // Create multiple ripples with delays
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const ripple = document.createElement('div');
+                    ripple.className = 'ripple';
+                    ripple.style.animation = 'ripple 1s ease-out';
+                    container.appendChild(ripple);
+
+                    // Remove ripple after animation
+                    setTimeout(() => {
+                        ripple.remove();
+                    }, 1000);
+                }, i * 200);
             }
         }
 
