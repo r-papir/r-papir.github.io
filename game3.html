@@ -104,7 +104,7 @@
             display: none;
         }
 
-        #restart-button, #download-button {
+        #restart-button, #download-button, #skip-button {
             position: fixed;
             top: 20px;
             padding: 15px 30px;
@@ -130,7 +130,12 @@
             font-size: 16px;
         }
 
-        #restart-button:hover, #download-button:hover {
+        #skip-button {
+            left: 20px;
+            display: block;
+        }
+
+        #restart-button:hover, #download-button:hover, #skip-button:hover {
             background-color: #1a1a1a;
             color: #ffffff;
         }
@@ -226,6 +231,7 @@
         <div id="grid"></div>
     </div>
     <button id="restart-button">Start Over</button>
+    <button id="skip-button">Skip Level</button>
     <button id="download-button">Download Data</button>
 
     <script src="webgazer.js"></script>
@@ -353,10 +359,38 @@
             };
         }
 
-        function level3() {
+        // Blank level - no vehicle, goal, or chunks; advanced via the Skip Level button
+        function blankLevel() {
             return {
                 id: 3,
-                name: "Level 3",
+                name: "Blank Level",
+                grid: [
+                    [0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0],
+                ],
+                chunks: [],
+                vehicleStart: [0,0],
+                goal: [0,0],
+                colors: {
+                    background: "#FFFFFF",
+                    track: "#FFFFFF",
+                    fixedTrack: "#FFFFFF",
+                    vehicle: "#FFFFFF",
+                    goal: "#FFFFFF",
+                    selectedChunk: "#FFFFFF"
+                }
+            };
+        }
+
+        function level3() {
+            return {
+                id: 4,
+                name: "Level 4",
                 grid: [
                     [3,0,0,0,0,0,0],
                     [0,0,0,0,0,1,0],
@@ -386,8 +420,8 @@
 
         function level4() {
             return {
-                id: 4,
-                name: "Level 4",
+                id: 5,
+                name: "Level 5",
                 grid: [
                     [0,0,0,3,0,0,0],
                     [0,1,0,0,0,0,0],
@@ -875,6 +909,7 @@
         document.getElementById('restart-button').addEventListener('click', () => {
             currentLevelIndex = 0;
             document.getElementById('restart-button').style.display = 'none';
+            document.getElementById('skip-button').style.display = 'block';
 
             // Reset session data
             sessionData = {
@@ -890,6 +925,36 @@
             };
 
             loadLevel(currentLevelIndex);
+        });
+
+        // Skip button - advances to the next level without solving the puzzle
+        document.getElementById('skip-button').addEventListener('click', () => {
+            if (currentLevelIndex >= levels.length || isTransitioning) return;
+
+            logEvent('SkipButton', 'skip_level');
+            isTransitioning = true;
+
+            const gridElement = document.getElementById('grid');
+            gridElement.classList.add('fade-out');
+
+            setTimeout(() => {
+                currentLevelIndex++;
+                isTransitioning = false;
+                if (currentLevelIndex < levels.length) {
+                    gridElement.style.opacity = '0';
+                    loadLevel(currentLevelIndex);
+                    setTimeout(() => {
+                        gridElement.style.opacity = '';
+                        gridElement.classList.remove('fade-out');
+                    }, 50);
+                } else {
+                    gridElement.classList.remove('fade-out');
+                    document.getElementById('restart-button').style.display = 'block';
+                    document.getElementById('skip-button').style.display = 'none';
+                    handleGameComplete();
+                    showCompletionMessage('C');
+                }
+            }, 500);
         });
 
         // Download button
@@ -1007,7 +1072,7 @@
         }
 
         // Initialize game
-        levels = [level1(), level2(), level3(), level4()];
+        levels = [level1(), level2(), blankLevel(), level3(), level4()];
         initGrid();
         loadLevel(0);
 
