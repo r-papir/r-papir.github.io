@@ -359,10 +359,10 @@
         }
 
         // Blank level - no vehicle, goal, or chunks; advanced via the Skip Level button
-        function blankLevel() {
+        function blankLevel(id = 3, name = "Blank Level") {
             return {
-                id: 3,
-                name: "Blank Level",
+                id,
+                name,
                 grid: [
                     [0,0,0,0,0,0,0],
                     [0,0,0,0,0,0,0],
@@ -1071,7 +1071,7 @@
         }
 
         // Initialize game
-        levels = [level1(), level2(), blankLevel(), level3(), level4()];
+        levels = [level1(), level2(), blankLevel(), level3(), level4(), blankLevel(6, "Blank Level 2")];
         initGrid();
         loadLevel(0);
 
