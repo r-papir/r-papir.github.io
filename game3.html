@@ -256,6 +256,7 @@
             selectedChunkIndex: 0,
             vehiclePos: { row: 0, col: 0 },
             goalPos: { row: 0, col: 0 },
+            goalPositions: [{ row: 0, col: 0 }],
             colors: {}
         };
 
@@ -274,7 +275,8 @@
                 "origin": "(row 0, col 0) is top-left corner",
                 "row": "increases top to bottom (0-6)",
                 "col": "increases left to right (0-6)",
-                "movement": "Arrow keys move the selected chunk by 1 cell in that direction"
+                "movement": "Arrow keys move the selected chunk by 1 cell in that direction",
+                "note": "The (row, col) system corresponds to (Y, X) coordinates: row is vertical position (Y), col is horizontal position (X)."
             },
             sessionStart: new Date().toISOString(),
             events: []
@@ -417,10 +419,42 @@
             };
         }
 
-        function level4() {
+        function level5() {
             return {
                 id: 5,
                 name: "Level 5",
+                grid: [
+                    [2,0,0,0,1,1,1],
+                    [2,0,0,0,0,0,2],
+                    [0,1,0,0,0,0,0],
+                    [0,0,2,2,0,0,0],
+                    [0,0,1,2,0,1,0],
+                    [0,0,1,1,0,0,0],
+                    [0,0,0,3,0,0,0],
+                ],
+                chunks: [
+                    [[2,1]],                 // T - single moveable pixel
+                    [[4,2],[5,2],[5,3]],     // A - three-cell chunk
+                    [[0,4],[0,5],[0,6]],     // B - three-cell chunk
+                    [[4,5]],                 // S - single moveable pixel
+                ],
+                vehicleStart: [6,3],
+                goals: [[0,0],[0,6]],  // Vehicle splits along the connected path; both must be reached
+                colors: {
+                    background: "#FFFFFF",
+                    track: "#332288",
+                    fixedTrack: "#332288",
+                    vehicle: "#ff9b4f",
+                    goal: "#ff9b4f",
+                    selectedChunk: "#D3D3D3"
+                }
+            };
+        }
+
+        function level4() {
+            return {
+                id: 6,
+                name: "Level 6",
                 grid: [
                     [0,0,0,3,0,0,0],
                     [0,1,0,0,0,0,0],
@@ -474,7 +508,9 @@
             gameState.chunks = level.chunks.map(chunk => chunk.map(cell => [...cell]));
             gameState.selectedChunkIndex = 0;
             gameState.vehiclePos = { row: level.vehicleStart[0], col: level.vehicleStart[1] };
-            gameState.goalPos = { row: level.goal[0], col: level.goal[1] };
+            const goalCoords = level.goals || [level.goal];
+            gameState.goalPositions = goalCoords.map(([row, col]) => ({ row, col }));
+            gameState.goalPos = gameState.goalPositions[0]; // primary goal, kept for backward compatibility
             gameState.colors = { ...level.colors };
 
             renderGrid();
@@ -565,8 +601,9 @@
             // Clear old positions (but preserve goal if chunk was on it)
             for (const [r, c] of chunk) {
                 if (gameState.grid[r][c] === 1) {
-                    // Check if this was originally the goal position
-                    if (r === gameState.goalPos.row && c === gameState.goalPos.col) {
+                    // Check if this was originally a goal position
+                    const wasGoal = gameState.goalPositions.some(g => g.row === r && g.col === c);
+                    if (wasGoal) {
                         gameState.grid[r][c] = 4; // Restore goal
                     } else {
                         gameState.grid[r][c] = 0;
@@ -601,9 +638,11 @@
                         }
                     }
 
-                    // Move vehicle to goal
-                    gameState.vehiclePos = { ...gameState.goalPos };
-                    gameState.grid[gameState.vehiclePos.row][gameState.vehiclePos.col] = 3;
+                    // Move vehicle(s) to goal(s) - one vehicle per goal position
+                    for (const g of gameState.goalPositions) {
+                        gameState.grid[g.row][g.col] = 3;
+                    }
+                    gameState.vehiclePos = { ...gameState.goalPositions[0] };
 
                     // Clear selection so pathway shows uniformly on completion
                     gameState.selectedChunkIndex = -1;
@@ -649,10 +688,10 @@
             renderGrid();
         }
 
-        // Pathfinding: BFS to check if vehicle(s) can reach goal
-        // Requires: a piece must be placed on the goal position (goal cell must be track, not empty)
+        // Pathfinding: BFS to check if vehicle(s) can reach goal(s)
+        // Requires: a piece must be placed on every goal position (goal cell must be track, not empty)
         function canReachGoal() {
-            const goal = gameState.goalPos;
+            const goals = gameState.goalPositions;
             const level = levels[currentLevelIndex];
 
             // Check if level has a required position that must contain a movable piece
@@ -663,10 +702,13 @@
                 }
             }
 
-            // First check: the goal position must have a piece on it (value 1 = track)
-            // If it's still 4 (goal marker), no piece has been placed there yet
-            if (gameState.grid[goal.row][goal.col] === 4) {
-                return false; // Goal not yet covered by a piece
+            // First check: every goal position must have a piece on it (value 1 = track)
+            // or be permanently occupied by a fixed piece (value 2).
+            // If it's still 4 (goal marker), no piece has been placed there yet.
+            for (const goal of goals) {
+                if (gameState.grid[goal.row][goal.col] === 4) {
+                    return false; // Goal not yet covered by a piece
+                }
             }
 
             // Find all vehicle positions in the grid
@@ -679,22 +721,16 @@
                 }
             }
 
-            // Check if EACH vehicle can reach the goal
+            // Check if EACH vehicle can reach EVERY goal (covers both a single vehicle
+            // whose connected network branches out to multiple goals, and multiple
+            // vehicles converging on a shared goal)
             for (const [startRow, startCol] of vehiclePositions) {
                 const queue = [[startRow, startCol]];
                 const visited = new Set();
                 visited.add(`${startRow},${startCol}`);
 
-                let canReach = false;
-
                 while (queue.length > 0) {
                     const [row, col] = queue.shift();
-
-                    // Check if we reached the goal
-                    if (row === goal.row && col === goal.col) {
-                        canReach = true;
-                        break;
-                    }
 
                     // Check all 4 adjacent cells
                     const neighbors = [
@@ -719,13 +755,15 @@
                     }
                 }
 
-                // If ANY vehicle cannot reach the goal, return false
-                if (!canReach) {
-                    return false;
+                // If this vehicle cannot reach every goal, fail
+                for (const goal of goals) {
+                    if (!visited.has(`${goal.row},${goal.col}`)) {
+                        return false;
+                    }
                 }
             }
 
-            // All vehicles can reach the goal
+            // All vehicles can reach all goals
             return true;
         }
 
@@ -1071,7 +1109,7 @@
         }
 
         // Initialize game
-        levels = [level1(), level2(), blankLevel(), level3(), level4(), blankLevel(6, "Blank Level 2")];
+        levels = [level1(), level2(), blankLevel(), level3(), level5(), level4()];
         initGrid();
         loadLevel(0);
 
@@ -1100,6 +1138,7 @@
                     level: currentLevelIndex + 1,
                     vehiclePos: { ...gameState.vehiclePos },
                     goalPos: { ...gameState.goalPos },
+                    goalPositions: gameState.goalPositions.map(g => ({ ...g })),
                     selectedChunkIndex: gameState.selectedChunkIndex,
                     selectedChunkPosition: selectedChunkPosition,
                     chunks: gameState.chunks.map(chunk => chunk.map(cell => [...cell])),
