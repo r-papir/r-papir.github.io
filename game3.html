@@ -231,7 +231,7 @@
         <div id="grid"></div>
     </div>
     <button id="restart-button">Start Over</button>
-    <button id="skip-button">Skip Level</button>
+    <!-- <button id="skip-button">Skip Level</button> -->
     <button id="download-button">Download Data</button>
 
     <script src="webgazer.js"></script>
@@ -978,7 +978,7 @@
         document.getElementById('restart-button').addEventListener('click', () => {
             currentLevelIndex = 0;
             document.getElementById('restart-button').style.display = 'none';
-            document.getElementById('skip-button').style.display = 'block';
+            // document.getElementById('skip-button').style.display = 'block';
 
             // Reset session data
             sessionData = {
@@ -997,6 +997,8 @@
         });
 
         // Skip button - advances to the next level without solving the puzzle
+        // Commented out along with the button itself; uncomment both to restore.
+        /*
         document.getElementById('skip-button').addEventListener('click', () => {
             if (currentLevelIndex >= levels.length || isTransitioning) return;
 
@@ -1025,6 +1027,7 @@
                 }
             }, 500);
         });
+        */
 
         // Download button
         document.getElementById('download-button').addEventListener('click', () => {
