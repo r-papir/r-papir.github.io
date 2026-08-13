@@ -76,20 +76,25 @@
                 padding: 0 40px;
             }
         }
-        .credit {
+        .top-right {
             position: fixed;
             top: 1rem;
             right: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.5rem;
+        }
+        .credit {
             font-size: 0.85rem;
             color: #666;
             text-align: right;
         }
-        .logo {
+        .forg-logo {
             position: fixed;
             top: 1rem;
             left: 1rem;
-            height: 100px;
-            background-color: white;
+            height: 130px;
         }
         .eye-tracking-note {
             position: fixed;
@@ -134,10 +139,12 @@
     </style>
 </head>
 <body>
-    <img src="cogsci-logo.png" alt="Columbia University Cognitive Science" class="logo">
-    <div class="credit">Puzzles designed by Rachel Papirmeister for the<br>
-        Formal Methods Reasoning Group (FoRG), a constituent of<br>
-         the  Columbia University DAPLab. Unauthorized use is prohibited.<br>
+    <img src="forg-logo.png" alt="Formal Methods Reasoning Group" class="forg-logo">
+    <div class="top-right">
+        <div class="credit">Puzzles designed by Rachel Papirmeister exclusively for the<br>
+            Formal Methods Reasoning Group (FoRG), a constituent of<br>
+             the  Columbia University DAPLab. Unauthorized use is prohibited.<br>
+        </div>
     </div>
     <div class="container">
         <h1>Causal Reasoning Study</h1>
