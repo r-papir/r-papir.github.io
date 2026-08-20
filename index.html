@@ -15,9 +15,16 @@
             background: white;
             min-height: 100vh;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             padding: 2rem;
+        }
+        .title-wrap {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin-bottom: 1.2rem;
         }
         .container {
             max-width: 500px;
@@ -25,9 +32,8 @@
         }
         h1 {
             text-align: center;
-            margin-bottom: 1.2rem;
             color: #333;
-            font-size: 2.19rem;
+            font-size: clamp(1rem, 3vw, 2.19rem);
             font-weight: 300;
             font-family: "Courier New", monospace;
             transform: scaleY(1.2);
@@ -147,9 +153,10 @@
             Columbia University DAPLab. Unauthorized use is prohibited.<br>
         </div>
     </div>
-    <div class="container">
+    <div class="title-wrap">
         <h1>STEP-Bench: Symbolic Temporal Exploratory Puzzle Benchmark</h1>
-
+    </div>
+    <div class="container">
         <div class="links">
             <a href="game.html">
                 Puzzle A
