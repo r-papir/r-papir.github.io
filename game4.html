@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puzzle Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Trebuchet MS', monospace;
+            background-color: #ffffff;
+            color: #000000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        #game-container {
+            text-align: center;
+            position: relative;
+        }
+
+        #ripple-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            border: 7px solid #32CD32;
+            width: 50px;
+            height: 50px;
+            margin-left: -25px;
+            margin-top: -25px;
+            opacity: 0;
+            transform: scale(0);
+            pointer-events: none;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            10% {
+                transform: scale(0.5);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(8);
+                opacity: 0;
+            }
+        }
+
+        #instructions {
+            margin-bottom: 20px;
+            font-size: 18px;
+            padding: 15px;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            border-radius: 8px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.5;
+            text-align: center;
+            opacity: 1;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #instructions.fade-out {
+            opacity: 0;
+        }
+
+        #grid {
+            display: inline-grid;
+            grid-template-columns: repeat(5, 140px);
+            grid-template-rows: repeat(5, 140px);
+            gap: 2px;
+            background-color: #e0e0e0;
+            padding: 2px;
+            border: 3px solid #e0e0e0;
+            opacity: 1;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #grid.fade-out {
+            opacity: 0;
+        }
+
+        #button-container {
+            display: none;
+        }
+
+        #restart-button, #download-button {
+            position: fixed;
+            top: 20px;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-family: 'Trebuchet MS', monospace;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            border: 3px solid #1a1a1a;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        #restart-button {
+            left: 20px;
+            display: none;
+        }
+
+        #download-button {
+            right: 20px;
+            display: block;
+            font-size: 16px;
+        }
+
+        .audio-recorder-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            text-align: right;
+        }
+
+        #download-button {
+            top: 100px;
+        }
+
+        #restart-button:hover, #download-button:hover {
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+
+        .cell {
+            width: 140px;
+            height: 140px;
+            border: 1px solid #e0e0e0;
+            box-sizing: border-box;
+            background-color: #FFFFFF;
+        }
+
+        /* Hide WebGazer camera elements during gameplay */
+        #webgazerVideoFeed,
+        #webgazerVideoCanvas,
+        #webgazerFaceFeedbackBox,
+        #webgazerGazeDot {
+            display: none !important;
+        }
+
+        .completion-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            cursor: pointer;
+        }
+        .completion-overlay.visible { opacity: 1; }
+        .completion-card {
+            background: white;
+            border-radius: 16px;
+            padding: 48px 56px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            transform: scale(0.8);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            font-family: "Trebuchet MS", sans-serif;
+        }
+        .completion-overlay.visible .completion-card { transform: scale(1); }
+        .completion-card h2 {
+            margin: 0 0 12px;
+            font-size: 28px;
+            color: #333;
+        }
+        .completion-card p {
+            margin: 0;
+            font-size: 16px;
+            color: #888;
+        }
+        .confetti-piece {
+            position: fixed;
+            top: -10px;
+            width: 10px;
+            height: 14px;
+            z-index: 10000;
+            opacity: 1;
+            animation: confetti-fall linear forwards;
+        }
+        @keyframes confetti-fall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            85% { opacity: 1; }
+            100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <script>
+    // Verify calibration before allowing game play
+    (function() {
+        var calibrated = sessionStorage.getItem('webgazerCalibrationComplete') === 'true';
+        var skipped = sessionStorage.getItem('eyeTrackingSkipped') === 'true';
+        if (!calibrated && !skipped) {
+            var returnUrl = encodeURIComponent(window.location.pathname);
+            window.location.href = 'calibration.html?return=' + returnUrl;
+        }
+    })();
+    </script>
+
+    <div id="instructions">
+        There are no instructions for this game, intentionally.<br>
+        Click the mouse to discover the controls, rules, and objective.
+    </div>
+    <div id="game-container">
+        <div id="ripple-container"></div>
+        <div id="grid"></div>
+    </div>
+    <button id="restart-button">Start Over</button>
+    <button id="download-button">Download Data</button>
+
+    <script src="webgazer.js"></script>
+    <script src="audio-recorder.js"></script>
+    <script src="s3-uploader.js"></script>
+    <script>S3Uploader.setApiUrl('https://n00wf4nmw6.execute-api.us-east-1.amazonaws.com/prod');</script>
+    <script>
+        // Get or generate shared 4-digit session code (persists across all games in same session)
+        let sessionCode = sessionStorage.getItem('gameSessionCode');
+        if (!sessionCode) {
+            sessionCode = String(Math.floor(1000 + Math.random() * 9000));
+            sessionStorage.setItem('gameSessionCode', sessionCode);
+        }
+
+        // ===========================
+        // PUZZLE D - mouse only, 5x5 grid, toroidal (wrap-around) environment
+        // ===========================
+        // Every level has:
+        //   - an "ego cell": the player's movable coloured box
+        //   - a "collection cell": a coloured box that sits underneath the ego
+        //     cell and is hidden whenever the ego cell is on top of it
+        //
+        // Controls (mouse only):
+        //   - Click any grid cell that is NOT the ego cell  -> advance the
+        //     movement cycle one step (the ego cell jumps by the current
+        //     cycle offset; the grid wraps on both axes)
+        //   - Click the ego cell while it is ON TOP of the collection cell
+        //     -> win the level
+        //   - Click the ego cell anywhere else -> reset the whole level
+        //     (ego cell returns to its start, movement cycle returns to step 1)
+        //
+        // Each level's movementCycle is a list of [dx, dy] offsets applied one
+        // per environment-click, looping forever. dx: +1 = right, -1 = left.
+        // dy: -1 = up, +1 = down.
+        // ===========================
+
+        const BLURB = 'There are no instructions for this game, intentionally.<br>Click the mouse to discover the controls, rules, and objective.';
+
+        const GRID_SIZE = 5;
+        const wrap = (v) => ((v % GRID_SIZE) + GRID_SIZE) % GRID_SIZE;
+
+        // Game state
+        let levels = [];
+        let currentLevelIndex = 0;
+        let isTransitioning = false; // Prevent overlapping level transitions
+        let gameState = {
+            egoPos: { x: 0, y: 0 },
+            egoStart: { x: 0, y: 0 },
+            collectionPos: { x: 0, y: 0 },
+            movementCycle: [],
+            cycleStep: 0,      // index into movementCycle for the NEXT environment click
+            clickCount: 0,     // environment clicks made this level
+            isPlayable: true,
+            colors: { ego: '#FFFFFF', collection: '#FFFFFF' }
+        };
+
+        // Data collection
+        let sessionData = {
+            game: "Game D",
+            legend: {
+                "E": "Empty - background cell",
+                "P": "Ego cell - the player's movable piece",
+                "C": "Collection cell - hidden target the ego cell must be clicked on top of"
+            },
+            coordinates: {
+                "grid": "5x5 grid",
+                "origin": "(0,0) is top-left corner",
+                "x": "increases left to right (0-4)",
+                "y": "increases top to bottom (0-4)",
+                "wrap": "toroidal - the grid wraps on both axes (left<->right and top<->bottom)",
+                "dx": "-1 = left, +1 = right, 0 = no horizontal movement",
+                "dy": "-1 = up, +1 = down, 0 = no vertical movement",
+                "movement": "each click on a non-ego cell applies the next [dx,dy] in the level's movement cycle to the ego cell"
+            },
+            sessionStart: new Date().toISOString(),
+            events: []
+        };
+
+        // ---------------------------------------------------------------
+        // Level definitions - each level is fully self-contained here
+        // ---------------------------------------------------------------
+
+        function level1() {
+            // Grid reference (x,y), x = col 0-4, y = row 0-4. Center = (2,2).
+            //
+            // Ego cell (pink) and collection cell (teal) both start in the
+            // center, so the teal cell is hidden at the start.
+            //
+            // Movement cycle (counter-clockwise diamond, period 4):
+            //   click 1: up + right   (+1, -1)   -> (3,1)
+            //   click 2: up + left    (-1, -1)   -> (2,0)
+            //   click 3: left + down  (-1, +1)   -> (1,1)
+            //   click 4: right + down (+1, +1)   -> (2,2)  back to start
+            // The ego cell returns to the center every 4 environment clicks.
+            //
+            // Win: click the ego cell while it is on the center cell (on top of
+            // the collection cell) - possible immediately, or after any whole
+            // number of 4-click cycles.
+            return {
+                id: 1,
+                name: "Level 1",
+                isPlayable: true,
+                egoStart: { x: 2, y: 2 },
+                collectionStart: { x: 2, y: 2 },
+                movementCycle: [
+                    [1, -1],
+                    [-1, -1],
+                    [-1, 1],
+                    [1, 1]
+                ],
+                colors: {
+                    ego: '#E491A6',        // pink
+                    collection: '#44AA99'  // teal
+                }
+            };
+        }
+
+        function level2() {
+            // Same grid and mechanics as Level 1, with changes:
+            //   - ego cell is yellow, collection cell is violet
+            //   - collection cell starts in the center row, right-most column: (4,2)
+            //   - ego cell still starts in the center: (2,2)
+            //
+            // Movement cycle (period 4):
+            //   click 1: up + right   (+1, -1)
+            //   click 2: up + left    (-1, -1)
+            //   click 3: left + down  (-1, +1)
+            //   click 4: down only    ( 0, +1)
+            //   click 5: up + right ... (cycle repeats)
+            //
+            // Net drift per full 4-click cycle = (-1, 0): the ego cell comes
+            // back to the middle row one column to the LEFT of where it was.
+            // Because the grid wraps on both axes, continuing to click walks
+            // the ego cell leftward off the grid and back on from the right.
+            //
+            // Trace from (2,2): after 4 clicks (1,2); after 8 clicks (0,2);
+            // after 12 clicks (4,2) - on top of the collection cell. Then a
+            // click on the ego cell wins.
+            return {
+                id: 2,
+                name: "Level 2",
+                isPlayable: true,
+                egoStart: { x: 2, y: 2 },
+                collectionStart: { x: 4, y: 2 },
+                movementCycle: [
+                    [1, -1],
+                    [-1, -1],
+                    [-1, 1],
+                    [0, 1]
+                ],
+                colors: {
+                    ego: '#DDCC77',        // yellow
+                    collection: '#332288'  // violet
+                }
+            };
+        }
+
+        // Empty placeholder level - blank white 5x5 grid, no ego / collection
+        // cell, clicks do nothing. To be designed later.
+        function blankLevel(id) {
+            return {
+                id: id,
+                name: "Level " + id,
+                isPlayable: false,
+                egoStart: { x: 2, y: 2 },
+                collectionStart: { x: 2, y: 2 },
+                movementCycle: [],
+                colors: {
+                    ego: '#FFFFFF',
+                    collection: '#FFFFFF'
+                }
+            };
+        }
+
+        function level3() { return blankLevel(3); }
+        function level4() { return blankLevel(4); }
+        function level5() { return blankLevel(5); }
+        function level6() { return blankLevel(6); }
+
+        // ---------------------------------------------------------------
+        // Grid / rendering
+        // ---------------------------------------------------------------
+
+        function initGrid() {
+            const gridElement = document.getElementById('grid');
+            gridElement.innerHTML = '';
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.id = `cell-${x}-${y}`;
+                    cell.addEventListener('click', () => handleCellClick(x, y));
+                    gridElement.appendChild(cell);
+                }
+            }
+        }
+
+        function loadLevel(levelIndex) {
+            if (levelIndex >= levels.length) {
+                return;
+            }
+
+            // Clear any lingering ripples from the previous level
+            document.getElementById('ripple-container').innerHTML = '';
+
+            const level = levels[levelIndex];
+
+            gameState.egoPos = { ...level.egoStart };
+            gameState.egoStart = { ...level.egoStart };
+            gameState.collectionPos = { ...level.collectionStart };
+            gameState.movementCycle = level.movementCycle.map(step => [...step]);
+            gameState.cycleStep = 0;
+            gameState.clickCount = 0;
+            gameState.isPlayable = level.isPlayable;
+            gameState.colors = { ...level.colors };
+
+            const instructionsElement = document.getElementById('instructions');
+            instructionsElement.innerHTML = BLURB;
+            instructionsElement.style.display = 'block';
+
+            renderGrid();
+
+            const gridElement = document.getElementById('grid');
+            gridElement.classList.remove('fade-out');
+            instructionsElement.classList.remove('fade-out');
+        }
+
+        function renderGrid() {
+            // Reset every cell to empty background
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    const cell = document.getElementById(`cell-${x}-${y}`);
+                    cell.style.backgroundColor = '#FFFFFF';
+                    cell.style.borderColor = '#e0e0e0';
+                }
+            }
+
+            if (!gameState.isPlayable) return;
+
+            // Draw the collection cell first...
+            const c = gameState.collectionPos;
+            document.getElementById(`cell-${c.x}-${c.y}`).style.backgroundColor = gameState.colors.collection;
+
+            // ...then the ego cell on top, so the collection cell is hidden
+            // whenever the ego cell shares its square.
+            const e = gameState.egoPos;
+            document.getElementById(`cell-${e.x}-${e.y}`).style.backgroundColor = gameState.colors.ego;
+        }
+
+        // ---------------------------------------------------------------
+        // Interaction
+        // ---------------------------------------------------------------
+
+        function handleCellClick(x, y) {
+            if (isTransitioning) return;
+            if (currentLevelIndex >= levels.length) return;
+            if (!gameState.isPlayable) return;
+
+            const onEgo = (x === gameState.egoPos.x && y === gameState.egoPos.y);
+
+            if (onEgo) {
+                const egoOnCollection = (gameState.egoPos.x === gameState.collectionPos.x &&
+                                         gameState.egoPos.y === gameState.collectionPos.y);
+                if (egoOnCollection) {
+                    logEvent({ x, y }, 'ego_on_collection', 'win');
+                    handleWin();
+                } else {
+                    logEvent({ x, y }, 'ego', 'reset_level');
+                    loadLevel(currentLevelIndex);
+                }
+                return;
+            }
+
+            // Environment click - advance the movement cycle by one step
+            logEvent({ x, y }, 'environment', 'advance_cycle');
+
+            const [dx, dy] = gameState.movementCycle[gameState.cycleStep];
+            gameState.egoPos.x = wrap(gameState.egoPos.x + dx);
+            gameState.egoPos.y = wrap(gameState.egoPos.y + dy);
+            gameState.cycleStep = (gameState.cycleStep + 1) % gameState.movementCycle.length;
+            gameState.clickCount++;
+
+            renderGrid();
+        }
+
+        function handleWin() {
+            isTransitioning = true;
+
+            createRipple();
+
+            const gridElement = document.getElementById('grid');
+            const instructionsElement = document.getElementById('instructions');
+            gridElement.classList.add('fade-out');
+            instructionsElement.classList.add('fade-out');
+
+            setTimeout(() => {
+                currentLevelIndex++;
+                isTransitioning = false;
+                if (currentLevelIndex < levels.length) {
+                    loadLevel(currentLevelIndex);
+                } else {
+                    // Game complete - show restart button and upload data
+                    gridElement.classList.remove('fade-out');
+                    instructionsElement.classList.remove('fade-out');
+                    document.getElementById('restart-button').style.display = 'block';
+                    handleGameComplete();
+                    showCompletionMessage('D');
+                }
+            }, 800);
+        }
+
+        function showCompletionMessage(puzzleLetter) {
+            const overlay = document.createElement('div');
+            overlay.className = 'completion-overlay';
+            overlay.innerHTML = '<div class="completion-card">' +
+                '<h2>Congratulations!</h2>' +
+                '<p>You completed all levels of Puzzle ' + puzzleLetter + '.</p>' +
+                '</div>';
+            document.body.appendChild(overlay);
+            requestAnimationFrame(() => overlay.classList.add('visible'));
+
+            const colors = ['#e53935','#1e88e5','#43a047','#fdd835','#8e24aa','#fb8c00','#00acc1'];
+            for (let i = 0; i < 80; i++) {
+                const piece = document.createElement('div');
+                piece.className = 'confetti-piece';
+                piece.style.left = Math.random() * 100 + 'vw';
+                piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+                piece.style.animationDuration = (2 + Math.random() * 2) + 's';
+                piece.style.animationDelay = Math.random() * 1.5 + 's';
+                piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+                piece.style.width = (6 + Math.random() * 8) + 'px';
+                piece.style.height = (8 + Math.random() * 10) + 'px';
+                document.body.appendChild(piece);
+            }
+
+            overlay.addEventListener('click', () => {
+                overlay.classList.remove('visible');
+                setTimeout(() => {
+                    overlay.remove();
+                    document.querySelectorAll('.confetti-piece').forEach(p => p.remove());
+                }, 500);
+            });
+        }
+
+        // Create ripple effect on win
+        function createRipple() {
+            const container = document.getElementById('ripple-container');
+
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const ripple = document.createElement('div');
+                    ripple.className = 'ripple';
+                    ripple.style.animation = 'ripple 1s ease-out forwards';
+                    container.appendChild(ripple);
+
+                    setTimeout(() => {
+                        ripple.remove();
+                    }, 1100);
+                }, i * 200);
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Logging
+        // ---------------------------------------------------------------
+
+        function generateGameStateMatrix() {
+            const matrix = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('E'));
+            if (gameState.isPlayable) {
+                matrix[gameState.collectionPos.y][gameState.collectionPos.x] = 'C';
+                matrix[gameState.egoPos.y][gameState.egoPos.x] = 'P';
+            }
+            return matrix;
+        }
+
+        function logEvent(clickedCell, clickTarget, action) {
+            sessionData.events.push({
+                timestamp: new Date().toISOString(),
+                level: currentLevelIndex + 1,
+                clickedCell: { ...clickedCell },
+                clickTarget: clickTarget,       // 'environment' | 'ego' | 'ego_on_collection'
+                action: action,                 // 'advance_cycle' | 'reset_level' | 'win'
+                cycleStepBefore: gameState.cycleStep,
+                clickCountBefore: gameState.clickCount,
+                egoPosBefore: { ...gameState.egoPos },
+                collectionPos: { ...gameState.collectionPos },
+                gameStateBefore: generateGameStateMatrix()
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // Buttons
+        // ---------------------------------------------------------------
+
+        document.getElementById('restart-button').addEventListener('click', () => {
+            currentLevelIndex = 0;
+            isTransitioning = false;
+            document.getElementById('restart-button').style.display = 'none';
+            loadLevel(currentLevelIndex);
+        });
+
+        document.getElementById('download-button').addEventListener('click', () => {
+            const participantId = AudioRecorder.promptParticipantId();
+            if (participantId === null) return;
+
+            sessionData.sessionEnd = new Date().toISOString();
+
+            // Include transcription data from audio recorder (with safety check)
+            sessionData.transcription = (typeof AudioRecorder !== 'undefined' && AudioRecorder.getTranscription)
+                ? AudioRecorder.getTranscription()
+                : [];
+
+            let dataStr = JSON.stringify(sessionData, null, 2);
+
+            // Post-process to compress gameStateBefore arrays into compact rows
+            dataStr = dataStr.replace(
+                /"gameStateBefore":\s*\[\s*\[\s*("[A-Z]",?\s*)+\]\s*(,\s*\[\s*("[A-Z]",?\s*)+\]\s*)*\]/g,
+                (match) => {
+                    const letters = match.match(/"[A-Z]"/g);
+                    if (!letters) return match;
+
+                    const rows = [];
+                    for (let i = 0; i < letters.length; i += GRID_SIZE) {
+                        rows.push('[' + letters.slice(i, i + GRID_SIZE).join(',') + ']');
+                    }
+
+                    return '"gameStateBefore": [\n        ' + rows.join(',\n        ') + '\n      ]';
+                }
+            );
+
+            const dateStr = AudioRecorder.formatDateMMDDYYYY();
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${participantId}_gD_gamestate_${dateStr}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // Export eye-tracking and audio files
+            if (typeof AudioRecorder !== 'undefined' && AudioRecorder.exportRecording) {
+                AudioRecorder.exportRecording(participantId, 'gD');
+            }
+        });
+
+        // ---------------------------------------------------------------
+        // S3 upload
+        // ---------------------------------------------------------------
+
+        function showUploadStatus(message, type) {
+            let statusEl = document.getElementById('upload-status');
+            if (!statusEl) {
+                statusEl = document.createElement('div');
+                statusEl.id = 'upload-status';
+                statusEl.style.cssText = 'position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; background: #333; color: white; border-radius: 8px; z-index: 1000; font-family: sans-serif; font-size: 14px; transition: opacity 0.3s;';
+                document.body.appendChild(statusEl);
+            }
+            statusEl.textContent = message;
+            statusEl.style.background = type === 'success' ? '#2e7d32' : type === 'error' ? '#c62828' : '#1565c0';
+        }
+
+        async function handleGameComplete() {
+            sessionData.sessionEnd = new Date().toISOString();
+            sessionData.transcription = (typeof AudioRecorder !== 'undefined' && AudioRecorder.getTranscription)
+                ? AudioRecorder.getTranscription()
+                : [];
+
+            const recorderState = (typeof AudioRecorder !== 'undefined' && AudioRecorder.getState)
+                ? AudioRecorder.getState()
+                : { gazeData: [], audioChunks: [] };
+
+            const eyeTrackingData = {
+                game: sessionData.game,
+                dataType: 'eye-tracking',
+                sessionStart: sessionData.sessionStart,
+                sessionEnd: sessionData.sessionEnd,
+                gaze: recorderState.gazeData || []
+            };
+
+            if (typeof S3Uploader === 'undefined' || !S3Uploader.getApiUrl()) {
+                console.log('S3Uploader not configured. Skipping upload.');
+                return;
+            }
+
+            showUploadStatus('Uploading session data...', 'uploading');
+
+            const result = await S3Uploader.upload(
+                sessionCode,
+                sessionData.game,
+                sessionData,
+                eyeTrackingData,
+                recorderState.audioChunks,
+                (status) => showUploadStatus(status, 'uploading')
+            );
+
+            if (result.success) {
+                showUploadStatus('Data uploaded successfully!', 'success');
+                setTimeout(() => {
+                    const statusEl = document.getElementById('upload-status');
+                    if (statusEl) statusEl.style.opacity = '0';
+                }, 3000);
+            } else {
+                showUploadStatus('Upload failed. Use Download button as backup.', 'error');
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Start
+        // ---------------------------------------------------------------
+
+        levels = [
+            level1(),
+            level2(),
+            level3(),
+            level4(),
+            level5(),
+            level6()
+        ];
+
+        initGrid();
+        loadLevel(0);
+
+        // Initialize audio recorder
+        AudioRecorder.init({
+            gamePrefix: 'puzzle-game4',
+            gameName: 'Game D',
+            getGameState: function() {
+                return {
+                    level: currentLevelIndex + 1,
+                    egoPos: { ...gameState.egoPos },
+                    collectionPos: { ...gameState.collectionPos },
+                    cycleStep: gameState.cycleStep,
+                    clickCount: gameState.clickCount,
+                    isPlayable: gameState.isPlayable,
+                    gameStateMatrix: generateGameStateMatrix()
+                };
+            },
+            screenToGrid: function(screenX, screenY) {
+                const grid = document.getElementById('grid');
+                const rect = grid.getBoundingClientRect();
+
+                if (screenX < rect.left || screenX > rect.right ||
+                    screenY < rect.top || screenY > rect.bottom) {
+                    return null; // Off grid
+                }
+
+                const cellWidth = rect.width / GRID_SIZE;
+                const cellHeight = rect.height / GRID_SIZE;
+                const gridX = Math.floor((screenX - rect.left) / cellWidth);
+                const gridY = Math.floor((screenY - rect.top) / cellHeight);
+
+                return { x: Math.min(gridX, GRID_SIZE - 1), y: Math.min(gridY, GRID_SIZE - 1) };
+            },
+            insertBeforeSelector: '#download-button',
+            onRecordingStart: () => {
+                S3Uploader.startBackups(sessionCode, 'Game D', () => AudioRecorder.getState().audioChunks);
+            },
+            onRecordingStop: () => {
+                S3Uploader.stopBackups();
+            }
+        });
+    </script>
+</body>
+</html>
