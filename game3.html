@@ -254,9 +254,9 @@
             grid: [],
             chunks: [],
             selectedChunkIndex: 0,
-            vehiclePos: { row: 0, col: 0 },
-            goalPos: { row: 0, col: 0 },
-            goalPositions: [{ row: 0, col: 0 }],
+            vehiclePos: { x: 0, y: 0 },
+            goalPos: { x: 0, y: 0 },
+            goalPositions: [{ x: 0, y: 0 }],
             colors: {}
         };
 
@@ -272,11 +272,11 @@
             },
             coordinates: {
                 "grid": "7x7 grid",
-                "origin": "(row 0, col 0) is top-left corner",
-                "row": "increases top to bottom (0-6)",
-                "col": "increases left to right (0-6)",
+                "origin": "(x 0, y 0) is the top-left corner",
+                "x": "column index, increases left to right (0-6)",
+                "y": "row index, increases top to bottom (0-6)",
                 "movement": "Arrow keys move the selected chunk by 1 cell in that direction",
-                "note": "The (row, col) system corresponds to (Y, X) coordinates: row is vertical position (Y), col is horizontal position (X)."
+                "note": "All coordinate pairs are (x, y) = (column, row): x is horizontal position, y is vertical position. The grid array is row-major, indexed grid[y][x]."
             },
             sessionStart: new Date().toISOString(),
             events: []
@@ -291,9 +291,9 @@
         // 3 = Vehicle (starting position)
         // 4 = Goal (hidden, where vehicle needs to reach)
         //
-        // chunks: array of coordinate groups [[row,col],[row,col],...]
+        // chunks: array of coordinate groups [[x,y],[x,y],...]
         //         - defines which movable tracks (1's) move together
-        //         - coordinates are [row, col] where row 0 is top, col 0 is left
+        //         - coordinates are [x, y] = [column, row]; x 0 is left, y 0 is top
         // ===========================
 
         // Level definitions
@@ -311,12 +311,12 @@
                     [0,0,0,1,1,0,0],
                 ],
                 chunks: [
-                    [[1,2],[1,3]],  // Two-cell chunk that moves together
-                    [[6,3]],        // Single moveable cell
-                    [[6,4]],        // Single moveable cell
+                    [[2,1],[3,1]],  // Two-cell chunk that moves together
+                    [[3,6]],        // Single moveable cell
+                    [[4,6]],        // Single moveable cell
                 ],
-                vehicleStart: [3,0],
-                goal: [3,6],
+                vehicleStart: [0,3],
+                goal: [6,3],
                 colors: {
                     background: "#FFFFFF",
                     track: "#ADD8E6",
@@ -333,22 +333,22 @@
                 id: 2,
                 name: "Level 2",
                 grid: [
-                    [0,0,0,3,0,0,1],  // Vehicle at (0,3), movable at (0,6)
-                    [0,0,0,0,0,0,1],  // Movable at (1,6)
-                    [0,0,0,2,0,0,0],  // Fixed at (2,3)
-                    [0,0,0,0,1,1,0],  // Movable at (3,4) and (3,5)
-                    [0,0,1,0,0,0,0],  // Movable at (4,2)
-                    [0,0,0,2,0,0,0],  // Fixed at (5,3)
-                    [0,2,2,0,0,0,0],  // Fixed at (6,1) and (6,2)
+                    [0,0,0,3,0,0,1],  // Vehicle at (3,0), movable at (6,0)
+                    [0,0,0,0,0,0,1],  // Movable at (6,1)
+                    [0,0,0,2,0,0,0],  // Fixed at (3,2)
+                    [0,0,0,0,1,1,0],  // Movable at (4,3) and (5,3)
+                    [0,0,1,0,0,0,0],  // Movable at (2,4)
+                    [0,0,0,2,0,0,0],  // Fixed at (3,5)
+                    [0,2,2,0,0,0,0],  // Fixed at (1,6) and (2,6)
                 ],
                 chunks: [
-                    [[0,6],[1,6]],  // Two-cell chunk at top-right (selected first)
-                    [[3,5]],        // Single movable at (3,5)
-                    [[4,2]],        // Single moveable pixel
-                    [[3,4]],        // Single moveable pixel
+                    [[6,0],[6,1]],  // Two-cell chunk at top-right (selected first)
+                    [[5,3]],        // Single movable at (5,3)
+                    [[2,4]],        // Single moveable pixel
+                    [[4,3]],        // Single moveable pixel
                 ],
-                vehicleStart: [0,3],
-                goal: [6,0],
+                vehicleStart: [3,0],
+                goal: [0,6],
                 colors: {
                     background: "#FFFFFF",
                     track: "#44AA99",
@@ -402,9 +402,9 @@
                     [0,0,0,1,0,1,2],
                 ],
                 chunks: [
-                    [[1,2],[2,2]],  // P - two-cell chunk
-                    [[5,3],[6,3]],  // R - two-cell chunk
-                    [[6,5]],        // Q - single moveable pixel
+                    [[2,1],[2,2]],  // P - two-cell chunk
+                    [[3,5],[3,6]],  // R - two-cell chunk
+                    [[5,6]],        // Q - single moveable pixel
                 ],
                 vehicleStart: [0,0],
                 goal: [6,6],  // Goal cell is also a fixed piece from the start (like Level 5's (0,0))
@@ -433,9 +433,9 @@
                     [1,1,0,0,0,0,4],
                 ],
                 chunks: [
-                    [[6,0],[6,1]],           // Two-cell chunk bottom left
-                    [[2,3],[3,3],[3,4],[3,5]], // Four-cell chunk
-                    [[1,5]],                 // Single moveable pixel
+                    [[0,6],[1,6]],           // Two-cell chunk bottom left
+                    [[3,2],[3,3],[4,3],[5,3]], // Four-cell chunk
+                    [[5,1]],                 // Single moveable pixel
                 ],
                 vehicleStart: [0,0],
                 goal: [6,6],
@@ -464,14 +464,14 @@
                     [0,0,0,3,0,0,0],
                 ],
                 chunks: [
-                    [[2,1]],                 // T - single moveable pixel
-                    [[0,3]],                 // U - single moveable pixel
-                    [[0,4],[0,5],[0,6]],     // B - three-cell chunk
-                    [[4,5]],                 // S - single moveable pixel
-                    [[4,2],[5,2],[5,3]],     // A - three-cell chunk
+                    [[1,2]],                 // T - single moveable pixel
+                    [[3,0]],                 // U - single moveable pixel
+                    [[4,0],[5,0],[6,0]],     // B - three-cell chunk
+                    [[5,4]],                 // S - single moveable pixel
+                    [[2,4],[2,5],[3,5]],     // A - three-cell chunk
                 ],
-                vehicleStart: [6,3],
-                goals: [[0,0],[0,6]],  // Vehicle splits along the connected path; both must be reached
+                vehicleStart: [3,6],
+                goals: [[0,0],[6,0]],  // Vehicle splits along the connected path; both must be reached
                 colors: {
                     background: "#FFFFFF",
                     track: "#332288",
@@ -497,13 +497,13 @@
                     [4,0,0,0,0,0,0],
                 ],
                 chunks: [
-                    [[4,3],[4,4]],  // Two-pixel moveable chunk
-                    [[4,6],[5,6]],  // Two-pixel moveable chunk
+                    [[3,4],[4,4]],  // Two-pixel moveable chunk
+                    [[6,4],[6,5]],  // Two-pixel moveable chunk
                     [[1,1]],        // Single moveable pixel
-                    [[2,4],[2,5]],  // Two-pixel moveable chunk
+                    [[4,2],[5,2]],  // Two-pixel moveable chunk
                 ],
-                vehicleStart: [0,3],  // First vehicle position
-                goal: [6,0],      // Goal where both vehicles meet
+                vehicleStart: [3,0],  // First vehicle position
+                goal: [0,6],      // Goal where both vehicles meet
                 colors: {
                     background: "#FFFFFF",
                     track: "#882255",
@@ -519,11 +519,11 @@
         function initGrid() {
             const gridElement = document.getElementById('grid');
             gridElement.innerHTML = '';
-            for (let row = 0; row < 7; row++) {
-                for (let col = 0; col < 7; col++) {
+            for (let y = 0; y < 7; y++) {
+                for (let x = 0; x < 7; x++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
-                    cell.id = `cell-${row}-${col}`;
+                    cell.id = `cell-${x}-${y}`;
                     gridElement.appendChild(cell);
                 }
             }
@@ -539,9 +539,9 @@
             gameState.grid = level.grid.map(row => [...row]);
             gameState.chunks = level.chunks.map(chunk => chunk.map(cell => [...cell]));
             gameState.selectedChunkIndex = 0;
-            gameState.vehiclePos = { row: level.vehicleStart[0], col: level.vehicleStart[1] };
+            gameState.vehiclePos = { x: level.vehicleStart[0], y: level.vehicleStart[1] };
             const goalCoords = level.goals || [level.goal];
-            gameState.goalPositions = goalCoords.map(([row, col]) => ({ row, col }));
+            gameState.goalPositions = goalCoords.map(([x, y]) => ({ x, y }));
             gameState.goalPos = gameState.goalPositions[0]; // primary goal, kept for backward compatibility
             gameState.colors = { ...level.colors };
 
@@ -556,18 +556,18 @@
         function renderGrid() {
             const selectedChunk = gameState.chunks[gameState.selectedChunkIndex];
 
-            for (let row = 0; row < 7; row++) {
-                for (let col = 0; col < 7; col++) {
-                    const cell = document.getElementById(`cell-${row}-${col}`);
-                    const gridValue = gameState.grid[row][col];
+            for (let y = 0; y < 7; y++) {
+                for (let x = 0; x < 7; x++) {
+                    const cell = document.getElementById(`cell-${x}-${y}`);
+                    const gridValue = gameState.grid[y][x];
 
                     let color = gameState.colors.background;
                     let isSelected = false;
 
                     // Check if this cell is part of the selected chunk
                     if (selectedChunk) {
-                        for (const [r, c] of selectedChunk) {
-                            if (r === row && c === col) {
+                        for (const [cx, cy] of selectedChunk) {
+                            if (cx === x && cy === y) {
                                 isSelected = true;
                                 break;
                             }
@@ -591,24 +591,24 @@
         }
 
         // Move selected chunk
-        function moveChunk(dRow, dCol) {
+        function moveChunk(dx, dy) {
             const chunk = gameState.chunks[gameState.selectedChunkIndex];
             if (!chunk) return;
 
             // Check if move is valid
-            const newPositions = chunk.map(([r, c]) => [r + dRow, c + dCol]);
+            const newPositions = chunk.map(([x, y]) => [x + dx, y + dy]);
 
             // Check bounds
-            for (const [r, c] of newPositions) {
-                if (r < 0 || r >= 7 || c < 0 || c >= 7) {
+            for (const [x, y] of newPositions) {
+                if (x < 0 || x >= 7 || y < 0 || y >= 7) {
                     return; // Out of bounds
                 }
             }
 
             // Check collisions with fixed track, vehicle, and other chunks
             // Note: Goal (4) is allowed - chunks can move over it
-            for (const [r, c] of newPositions) {
-                const gridValue = gameState.grid[r][c];
+            for (const [x, y] of newPositions) {
+                const gridValue = gameState.grid[y][x];
 
                 // Skip if empty or goal (both are passable)
                 if (gridValue === 0 || gridValue === 4) {
@@ -617,8 +617,8 @@
 
                 // Check if this position is part of the current chunk (which is okay)
                 let isPartOfCurrentChunk = false;
-                for (const [cr, cc] of chunk) {
-                    if (cr === r && cc === c) {
+                for (const [cx, cy] of chunk) {
+                    if (cx === x && cy === y) {
                         isPartOfCurrentChunk = true;
                         break;
                     }
@@ -631,14 +631,14 @@
             }
 
             // Clear old positions (but preserve goal if chunk was on it)
-            for (const [r, c] of chunk) {
-                if (gameState.grid[r][c] === 1) {
+            for (const [x, y] of chunk) {
+                if (gameState.grid[y][x] === 1) {
                     // Check if this was originally a goal position
-                    const wasGoal = gameState.goalPositions.some(g => g.row === r && g.col === c);
+                    const wasGoal = gameState.goalPositions.some(g => g.x === x && g.y === y);
                     if (wasGoal) {
-                        gameState.grid[r][c] = 4; // Restore goal
+                        gameState.grid[y][x] = 4; // Restore goal
                     } else {
-                        gameState.grid[r][c] = 0;
+                        gameState.grid[y][x] = 0;
                     }
                 }
             }
@@ -649,8 +649,8 @@
             }
 
             // Place chunk in new positions
-            for (const [r, c] of chunk) {
-                gameState.grid[r][c] = 1;
+            for (const [x, y] of chunk) {
+                gameState.grid[y][x] = 1;
             }
 
             renderGrid();
@@ -662,17 +662,17 @@
                 // Wait 1 second before starting the transition
                 setTimeout(() => {
                     // Convert vehicle position(s) to track
-                    for (let row = 0; row < 7; row++) {
-                        for (let col = 0; col < 7; col++) {
-                            if (gameState.grid[row][col] === 3) {
-                                gameState.grid[row][col] = 1; // Convert vehicle to track
+                    for (let y = 0; y < 7; y++) {
+                        for (let x = 0; x < 7; x++) {
+                            if (gameState.grid[y][x] === 3) {
+                                gameState.grid[y][x] = 1; // Convert vehicle to track
                             }
                         }
                     }
 
                     // Move vehicle(s) to goal(s) - one vehicle per goal position
                     for (const g of gameState.goalPositions) {
-                        gameState.grid[g.row][g.col] = 3;
+                        gameState.grid[g.y][g.x] = 3;
                     }
                     gameState.vehiclePos = { ...gameState.goalPositions[0] };
 
@@ -728,8 +728,8 @@
 
             // Check if level has a required position that must contain a movable piece
             if (level.requiredPosition) {
-                const { row, col } = level.requiredPosition;
-                if (gameState.grid[row][col] !== 1) {
+                const { x, y } = level.requiredPosition;
+                if (gameState.grid[y][x] !== 1) {
                     return false; // Required position doesn't have a movable piece
                 }
             }
@@ -738,17 +738,17 @@
             // or be permanently occupied by a fixed piece (value 2).
             // If it's still 4 (goal marker), no piece has been placed there yet.
             for (const goal of goals) {
-                if (gameState.grid[goal.row][goal.col] === 4) {
+                if (gameState.grid[goal.y][goal.x] === 4) {
                     return false; // Goal not yet covered by a piece
                 }
             }
 
             // Find all vehicle positions in the grid
             const vehiclePositions = [];
-            for (let row = 0; row < 7; row++) {
-                for (let col = 0; col < 7; col++) {
-                    if (gameState.grid[row][col] === 3) {
-                        vehiclePositions.push([row, col]);
+            for (let y = 0; y < 7; y++) {
+                for (let x = 0; x < 7; x++) {
+                    if (gameState.grid[y][x] === 3) {
+                        vehiclePositions.push([x, y]);
                     }
                 }
             }
@@ -756,40 +756,40 @@
             // Check if EACH vehicle can reach EVERY goal (covers both a single vehicle
             // whose connected network branches out to multiple goals, and multiple
             // vehicles converging on a shared goal)
-            for (const [startRow, startCol] of vehiclePositions) {
-                const queue = [[startRow, startCol]];
+            for (const [startX, startY] of vehiclePositions) {
+                const queue = [[startX, startY]];
                 const visited = new Set();
-                visited.add(`${startRow},${startCol}`);
+                visited.add(`${startX},${startY}`);
 
                 while (queue.length > 0) {
-                    const [row, col] = queue.shift();
+                    const [x, y] = queue.shift();
 
                     // Check all 4 adjacent cells
                     const neighbors = [
-                        [row - 1, col],
-                        [row + 1, col],
-                        [row, col - 1],
-                        [row, col + 1]
+                        [x, y - 1],
+                        [x, y + 1],
+                        [x - 1, y],
+                        [x + 1, y]
                     ];
 
-                    for (const [nRow, nCol] of neighbors) {
-                        if (nRow < 0 || nRow >= 7 || nCol < 0 || nCol >= 7) continue;
+                    for (const [nx, ny] of neighbors) {
+                        if (nx < 0 || nx >= 7 || ny < 0 || ny >= 7) continue;
 
-                        const key = `${nRow},${nCol}`;
+                        const key = `${nx},${ny}`;
                         if (visited.has(key)) continue;
 
-                        const gridValue = gameState.grid[nRow][nCol];
+                        const gridValue = gameState.grid[ny][nx];
                         // Can move on track (1), fixed track (2), vehicle (3), or goal (4)
                         if (gridValue === 1 || gridValue === 2 || gridValue === 3 || gridValue === 4) {
                             visited.add(key);
-                            queue.push([nRow, nCol]);
+                            queue.push([nx, ny]);
                         }
                     }
                 }
 
                 // If this vehicle cannot reach every goal, fail
                 for (const goal of goals) {
-                    if (!visited.has(`${goal.row},${goal.col}`)) {
+                    if (!visited.has(`${goal.x},${goal.y}`)) {
                         return false;
                     }
                 }
@@ -807,17 +807,17 @@
 
             // Clear vehicle(s) from old position(s)
             // For Level 4 with two vehicles, clear both; otherwise just clear the one
-            for (let row = 0; row < 7; row++) {
-                for (let col = 0; col < 7; col++) {
-                    if (gameState.grid[row][col] === 3) {
-                        gameState.grid[row][col] = 1; // Convert vehicle to track
+            for (let y = 0; y < 7; y++) {
+                for (let x = 0; x < 7; x++) {
+                    if (gameState.grid[y][x] === 3) {
+                        gameState.grid[y][x] = 1; // Convert vehicle to track
                     }
                 }
             }
 
             // Move vehicle to goal (both vehicles converge to same position in Level 4)
             gameState.vehiclePos = { ...gameState.goalPos };
-            gameState.grid[gameState.vehiclePos.row][gameState.vehiclePos.col] = 3;
+            gameState.grid[gameState.vehiclePos.y][gameState.vehiclePos.x] = 3;
 
             // Clear selection so pathway shows uniformly on completion
             gameState.selectedChunkIndex = -1;
@@ -901,20 +901,20 @@
             const matrix = Array(7).fill(null).map(() => Array(7).fill('E'));
 
             // Populate matrix based on grid values
-            for (let row = 0; row < 7; row++) {
-                for (let col = 0; col < 7; col++) {
-                    const gridValue = gameState.grid[row][col];
+            for (let y = 0; y < 7; y++) {
+                for (let x = 0; x < 7; x++) {
+                    const gridValue = gameState.grid[y][x];
 
                     if (gridValue === 0) {
-                        matrix[row][col] = 'E';  // Empty
+                        matrix[y][x] = 'E';  // Empty
                     } else if (gridValue === 1) {
-                        matrix[row][col] = 'M';  // Movable track
+                        matrix[y][x] = 'M';  // Movable track
                     } else if (gridValue === 2) {
-                        matrix[row][col] = 'F';  // Fixed track
+                        matrix[y][x] = 'F';  // Fixed track
                     } else if (gridValue === 3) {
-                        matrix[row][col] = 'V';  // Vehicle
+                        matrix[y][x] = 'V';  // Vehicle
                     } else if (gridValue === 4) {
-                        matrix[row][col] = 'G';  // Goal
+                        matrix[y][x] = 'G';  // Goal
                     }
                 }
             }
@@ -943,22 +943,22 @@
                 case 'ArrowUp':
                     e.preventDefault();
                     logEvent('ArrowUp', 'move_chunk_up');
-                    moveChunk(-1, 0);
+                    moveChunk(0, -1);
                     break;
                 case 'ArrowDown':
                     e.preventDefault();
                     logEvent('ArrowDown', 'move_chunk_down');
-                    moveChunk(1, 0);
+                    moveChunk(0, 1);
                     break;
                 case 'ArrowLeft':
                     e.preventDefault();
                     logEvent('ArrowLeft', 'move_chunk_left');
-                    moveChunk(0, -1);
+                    moveChunk(-1, 0);
                     break;
                 case 'ArrowRight':
                     e.preventDefault();
                     logEvent('ArrowRight', 'move_chunk_right');
-                    moveChunk(0, 1);
+                    moveChunk(1, 0);
                     break;
                 case ' ':
                     e.preventDefault();
@@ -1157,16 +1157,16 @@
                 let selectedChunkPosition = null;
                 const selectedChunk = gameState.chunks[gameState.selectedChunkIndex];
                 if (selectedChunk && selectedChunk.length > 0) {
-                    // Find the top-left-most cell (minimum row, then minimum col)
-                    let minRow = selectedChunk[0][0];
-                    let minCol = selectedChunk[0][1];
-                    for (const [row, col] of selectedChunk) {
-                        if (row < minRow || (row === minRow && col < minCol)) {
-                            minRow = row;
-                            minCol = col;
+                    // Find the top-left-most cell (minimum y = row, then minimum x = col)
+                    let minX = selectedChunk[0][0];
+                    let minY = selectedChunk[0][1];
+                    for (const [x, y] of selectedChunk) {
+                        if (y < minY || (y === minY && x < minX)) {
+                            minX = x;
+                            minY = y;
                         }
                     }
-                    selectedChunkPosition = { row: minRow, col: minCol };
+                    selectedChunkPosition = { x: minX, y: minY };
                 }
 
                 return {
@@ -1193,10 +1193,10 @@
                 // Convert to grid coordinates (0-6 for 7x7 grid)
                 const cellWidth = rect.width / 7;
                 const cellHeight = rect.height / 7;
-                const col = Math.floor((screenX - rect.left) / cellWidth);
-                const row = Math.floor((screenY - rect.top) / cellHeight);
+                const x = Math.floor((screenX - rect.left) / cellWidth);
+                const y = Math.floor((screenY - rect.top) / cellHeight);
 
-                return { x: Math.min(col, 6), y: Math.min(row, 6) };
+                return { x: Math.min(x, 6), y: Math.min(y, 6) };
             },
             keyActionMap: {
                 'ArrowUp': 'move_chunk_up',
