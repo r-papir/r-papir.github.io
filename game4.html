@@ -214,8 +214,71 @@
 </head>
 <body>
     <script>
+    // ---- Puzzle D authorization gate ----
+    // Must be the first script on the page. If the visitor has not entered the
+    // authorization code this session, replace the whole document with a code
+    // prompt and stop everything else (calibration, webgazer, the game) from
+    // loading. On the correct code we store a session flag and reload for a
+    // clean start.
+    (function () {
+        var authorized = false;
+        try { authorized = sessionStorage.getItem('puzzleDAuthorized') === 'true'; } catch (e) {}
+        if (authorized) return;
+
+        var AUTH_CODE = 'ABCD';
+
+        try { window.stop(); } catch (e) {}
+
+        document.open();
+        document.write(
+            '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+            '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+            '<title>Puzzle D — Authorization</title></head>' +
+            '<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
+            'background:#ffffff;font-family:\'Trebuchet MS\',Verdana,sans-serif;">' +
+            '<div style="width:360px;max-width:88vw;text-align:center;padding:24px;">' +
+            '<h1 style="font-weight:300;color:#333;font-size:1.9rem;margin:0 0 10px;">Puzzle D</h1>' +
+            '<p style="color:#666;font-size:0.95rem;margin:0 0 22px;">Enter the authorization code to continue.</p>' +
+            '<input id="pdac" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" ' +
+            'aria-label="Authorization code" ' +
+            'style="width:100%;box-sizing:border-box;padding:12px 14px;font-size:18px;font-family:inherit;' +
+            'text-align:center;letter-spacing:6px;text-transform:uppercase;border:2px solid #111;border-radius:8px;" />' +
+            '<div id="pdae" style="color:#c62828;font-size:14px;min-height:18px;margin:9px 0 0;"></div>' +
+            '<button id="pdab" type="button" ' +
+            'style="margin-top:12px;width:100%;padding:12px;font-size:16px;font-family:inherit;color:#111;' +
+            'background:#fee6e3;border:2px solid #111;border-radius:8px;box-shadow:4px 4px 0 #111;cursor:pointer;">Continue</button>' +
+            '</div></body></html>'
+        );
+        document.close();
+
+        var input = document.getElementById('pdac');
+        var errEl = document.getElementById('pdae');
+        var btn = document.getElementById('pdab');
+
+        function submit() {
+            if (input.value.trim().toUpperCase() === AUTH_CODE) {
+                try { sessionStorage.setItem('puzzleDAuthorized', 'true'); } catch (e) {}
+                window.location.reload();
+            } else {
+                errEl.textContent = 'Incorrect code. Please try again.';
+                input.value = '';
+                input.focus();
+            }
+        }
+
+        btn.addEventListener('click', submit);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        });
+        input.focus();
+    })();
+    </script>
+
+    <script>
     // Verify calibration before allowing game play
     (function() {
+        // Authorization gate runs first; don't calibrate an unauthorized visitor.
+        try { if (sessionStorage.getItem('puzzleDAuthorized') !== 'true') return; } catch (e) { return; }
         var calibrated = sessionStorage.getItem('webgazerCalibrationComplete') === 'true';
         var skipped = sessionStorage.getItem('eyeTrackingSkipped') === 'true';
         if (!calibrated && !skipped) {
