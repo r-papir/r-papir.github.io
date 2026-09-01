@@ -419,7 +419,49 @@
         }
 
         function level3() { return blankLevel(3); }
-        function level4() { return blankLevel(4); }
+
+        function level4() {
+            // Ego cell is blue, collection cell is orange.
+            //   - ego cell starts at (2,2)
+            //   - collection cell starts at (5,3): right-most column, middle row
+            //
+            // Movement cycle (period 4):
+            //   click 1: up 1 + right 1   (+1, -1)
+            //   click 2: up 1 + left 1    (-1, -1)
+            //   click 3: down 1 + left 1  (-1, +1)
+            //   click 4: down 2 + right 2 (+2, +2)
+            //   click 5: up 1 + right 1 ... (cycle repeats)
+            //
+            // Net drift per full 4-click cycle = (+1, +1). The ego cell runs a
+            // fixed 20-click loop through 10 cells (then repeats):
+            //   start (2,2)
+            //   1 (3,1)  2 (2,5)  3 (1,1)  4 (3,3)
+            //   5 (4,2)  6 (3,1)  7 (2,2)  8 (4,4)
+            //   9 (5,3) <- on the collection cell
+            //   10 (4,2) 11 (3,3) 12 (5,5) 13 (1,4) 14 (5,3) 15 (4,4)
+            //   16 (1,1) 17 (2,5) 18 (1,4) 19 (5,5) 20 (2,2)
+            //
+            // Win: reach the collection cell at (5,3) - first after 9 environment
+            // clicks (again at click 14) - then click the ego cell.
+            return {
+                id: 4,
+                name: "Level 4",
+                isPlayable: true,
+                egoStart: { x: 2, y: 2 },
+                collectionStart: { x: 5, y: 3 },
+                movementCycle: [
+                    [1, -1],
+                    [-1, -1],
+                    [-1, 1],
+                    [2, 2]
+                ],
+                colors: {
+                    ego: '#ADD8E6',        // blue
+                    collection: '#FF5F15'  // orange
+                }
+            };
+        }
+
         function level5() { return blankLevel(5); }
         function level6() { return blankLevel(6); }
 
