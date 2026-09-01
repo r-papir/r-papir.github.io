@@ -280,15 +280,15 @@
         let currentLevelIndex = 0;
         let gameState = {
             grid: [],
-            avatarPos: { x: 0, y: 0 },
+            avatarPos: { x: 1, y: 1 },
             avatarColor: 'grey',  // Track avatar color
-            centerPos: { x: 0, y: 0 },  // Blue center box
+            centerPos: { x: 1, y: 1 },  // Blue center box
             targetColor: 'blue',  // Color needed to win
             corners: {
-                originTopLeft: { x: 0, y: 0, color: 'teal' },      // teal (reset)
-                originTopRight: { x: 5, y: 0, color: 'yellow' },    // Yellow
-                originbBottomLeft: { x: 0, y: 5, color: 'pink' },    // Pink
-                originBottomRight: { x: 5, y: 5, color: 'blue' }    // Blue
+                originTopLeft: { x: 1, y: 1, color: 'teal' },      // teal (reset)
+                originTopRight: { x: 6, y: 1, color: 'yellow' },    // Yellow
+                originbBottomLeft: { x: 1, y: 6, color: 'pink' },    // Pink
+                originBottomRight: { x: 6, y: 6, color: 'blue' }    // Blue
             },
             moveCount: 0,
             colorHistory: ['grey'],  // Track color transitions
@@ -308,9 +308,9 @@
             },
             coordinates: {
                 "grid": "6x6 grid",
-                "origin": "(0,0) is top-left corner",
-                "x": "increases left to right (0-5)",
-                "y": "increases top to bottom (0-5)",
+                "origin": "(1,1) is the top-left corner (1-based)",
+                "x": "column, increases left to right (1-6)",
+                "y": "row, increases top to bottom (1-6)",
                 "dx": "-1 = left, +1 = right, 0 = no horizontal movement",
                 "dy": "-1 = up, +1 = down, 0 = no vertical movement"
             },
@@ -322,8 +322,9 @@
         function initGrid() {
             const gridElement = document.getElementById('grid');
             gridElement.innerHTML = '';
-            for (let y = 0; y < 6; y++) {
-                for (let x = 0; x < 6; x++) {
+            // 1-based coordinates: cells run (1,1)..(6,6)
+            for (let y = 1; y <= 6; y++) {
+                for (let x = 1; x <= 6; x++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
                     cell.id = `cell-${x}-${y}`;
@@ -385,8 +386,8 @@
 
         // Render the grid
         function renderGrid() {
-            for (let y = 0; y < 6; y++) {
-                for (let x = 0; x < 6; x++) {
+            for (let y = 1; y <= 6; y++) {
+                for (let x = 1; x <= 6; x++) {
                     const cell = document.getElementById(`cell-${x}-${y}`);
                     let color = COLORS.EMPTY;
 
@@ -448,7 +449,7 @@
 
         // Check if position is valid
         function isValidPosition(x, y) {
-            if (x < 0 || x >= 6 || y < 0 || y >= 6) return false;
+            if (x < 1 || x > 6 || y < 1 || y > 6) return false;
             // Cannot move onto corner blocks
             if (isCornerBlock(x, y)) return false;
             // Cannot move onto center block
@@ -613,6 +614,7 @@
         }
 
         // Generate game state matrix
+        // matrix is a plain 0-based array; coordinates are 1-based, so index with -1.
         function generateGameStateMatrix() {
             // Initialize 6x6 matrix with empty cells
             const matrix = Array(6).fill(null).map(() => Array(6).fill('E'));
@@ -629,14 +631,14 @@
                 } else {
                     code = 'C'; // Color - doesn't match goal
                 }
-                matrix[corner.y][corner.x] = code;
+                matrix[corner.y - 1][corner.x - 1] = code;
             }
 
             // Place goal (center) with 'G'
-            matrix[gameState.centerPos.y][gameState.centerPos.x] = 'G';
+            matrix[gameState.centerPos.y - 1][gameState.centerPos.x - 1] = 'G';
 
             // Place avatar with 'A' (on top of everything)
-            matrix[gameState.avatarPos.y][gameState.avatarPos.x] = 'A';
+            matrix[gameState.avatarPos.y - 1][gameState.avatarPos.x - 1] = 'A';
 
             return matrix;
         }
@@ -831,13 +833,13 @@
                     [0, 0, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0, 0]
                 ],
-                avatar: { x: 3, y: 3 },
-                center: { x: 2, y: 1 },
+                avatar: { x: 4, y: 4 },
+                center: { x: 3, y: 2 },
                 corners: {
-                    originTopLeft: { x: 0, y: 0, color: 'teal' },
-                    originTopRight: { x: 5, y: 0, color: 'teal' },
-                    originBottomLeft: { x: 0, y: 5, color: 'orange' },
-                    originBottomRight: { x: 5, y: 5, color: 'teal' } // target
+                    originTopLeft: { x: 1, y: 1, color: 'teal' },
+                    originTopRight: { x: 6, y: 1, color: 'teal' },
+                    originBottomLeft: { x: 1, y: 6, color: 'orange' },
+                    originBottomRight: { x: 6, y: 6, color: 'teal' } // target
                 }
             };
         }
@@ -856,13 +858,13 @@
                     [0, 0, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0, 0]
                 ],
-                avatar: { x: 2, y: 1 },
-                center: { x: 3, y: 3 },
+                avatar: { x: 3, y: 2 },
+                center: { x: 4, y: 4 },
                 corners: {
-                    originTopLeft: { x: 0, y: 0, color: 'teal' },
-                    originTopRight: { x: 5, y: 0, color: 'yellow' },
-                    originBottomLeft: { x: 0, y: 5, color: 'pink' },
-                    originBottomRight: { x: 5, y: 5, color: 'blue' } // target
+                    originTopLeft: { x: 1, y: 1, color: 'teal' },
+                    originTopRight: { x: 6, y: 1, color: 'yellow' },
+                    originBottomLeft: { x: 1, y: 6, color: 'pink' },
+                    originBottomRight: { x: 6, y: 6, color: 'blue' } // target
                 }
             };
         }
@@ -881,15 +883,15 @@
                     [0, 0, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0, 0]
                 ],
-                avatar: { x: 2, y: 5 },
-                center: { x: 2, y: 4 },
+                avatar: { x: 3, y: 6 },
+                center: { x: 3, y: 5 },
                 initialAvatarColor: 'blue',
                 targetColor: 'lime',  // Win by being yellow instead of blue
                 corners: {
-                    originTopLeft: { x: 0, y: 0, color: 'blue' },
-                    originTopRight: { x: 5, y: 0, color: 'lime' },
-                    originBottomLeft: { x: 0, y: 5, color: 'teal' },
-                    originBottomRight: { x: 5, y: 5, color: 'pink' }
+                    originTopLeft: { x: 1, y: 1, color: 'blue' },
+                    originTopRight: { x: 6, y: 1, color: 'lime' },
+                    originBottomLeft: { x: 1, y: 6, color: 'teal' },
+                    originBottomRight: { x: 6, y: 6, color: 'pink' }
                 }
             };
         }
@@ -907,15 +909,15 @@
                     [0, 0, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0, 0]
                 ],
-                avatar: { x: 5, y: 2 },
-                center: { x: 1, y: 2 },
+                avatar: { x: 6, y: 3 },
+                center: { x: 2, y: 3 },
                 initialAvatarColor: 'yellow',
                 targetColor: 'pink',  // Win by being pink instead of blue
                 corners: {
-                    originTopLeft: { x: 0, y: 0, color: 'yellow' },
-                    originTopRight: { x: 5, y: 0, color: 'blue' },
-                    originBottomLeft: { x: 0, y: 5, color: 'pink' },
-                    originBottomRight: { x: 5, y: 5, color: 'teal' }
+                    originTopLeft: { x: 1, y: 1, color: 'yellow' },
+                    originTopRight: { x: 6, y: 1, color: 'blue' },
+                    originBottomLeft: { x: 1, y: 6, color: 'pink' },
+                    originBottomRight: { x: 6, y: 6, color: 'teal' }
                 }
             };
         }
@@ -933,14 +935,14 @@
                     [0, 0, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0, 0]
                 ],
-                avatar: { x: 5, y: 4 },
-                center: { x: 2, y: 0 },
+                avatar: { x: 6, y: 5 },
+                center: { x: 3, y: 1 },
                 targetColor: 'yellow',  // Win by being pink instead of blue
                 corners: {
-                    originTopLeft: { x: 0, y: 0, color: 'yellow' },
-                    originTopRight: { x: 5, y: 0, color: 'pink' },
-                    originBottomLeft: { x: 0, y: 5, color: 'teal' },
-                    originBottomRight: { x: 5, y: 5, color: 'blue' }
+                    originTopLeft: { x: 1, y: 1, color: 'yellow' },
+                    originTopRight: { x: 6, y: 1, color: 'pink' },
+                    originBottomLeft: { x: 1, y: 6, color: 'teal' },
+                    originBottomRight: { x: 6, y: 6, color: 'blue' }
                 }
             };
         }
@@ -958,16 +960,16 @@
                     [0, 0, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0, 0]
                 ],
-                avatar: { x: 1, y: 0 },
-                center: { x: 4, y: 3 },
+                avatar: { x: 2, y: 1 },
+                center: { x: 5, y: 4 },
                 initialAvatarColor: 'lime',
                 targetColor: 'pink',  // Win by being pink instead of blue
                 corners: {
-                    originTopLeft: { x: 5, y: 0, color: 'yellow' },
-                    originTopRight: { x: 0, y: 5, color: 'blue' },
-                    originBottomLeft: { x: 2, y: 5, color: 'pink' },
-                    originBottomRight: { x: 2, y: 4, color: 'teal' },
-                    originBottomRightCorner: { x: 0, y: 0, color: 'lime' }
+                    originTopLeft: { x: 6, y: 1, color: 'yellow' },
+                    originTopRight: { x: 1, y: 6, color: 'blue' },
+                    originBottomLeft: { x: 3, y: 6, color: 'pink' },
+                    originBottomRight: { x: 3, y: 5, color: 'teal' },
+                    originBottomRightCorner: { x: 1, y: 1, color: 'lime' }
                 }
             };
         }
@@ -1011,13 +1013,13 @@
                     return null; // Off grid
                 }
 
-                // Convert to grid coordinates (0-5 for 6x6 grid)
+                // Convert to grid coordinates (1-6 for 6x6 grid, 1-based)
                 const cellWidth = rect.width / 6;
                 const cellHeight = rect.height / 6;
-                const gridX = Math.floor((screenX - rect.left) / cellWidth);
-                const gridY = Math.floor((screenY - rect.top) / cellHeight);
+                const gridX = Math.floor((screenX - rect.left) / cellWidth) + 1;
+                const gridY = Math.floor((screenY - rect.top) / cellHeight) + 1;
 
-                return { x: Math.min(gridX, 5), y: Math.min(gridY, 5) };
+                return { x: Math.min(gridX, 6), y: Math.min(gridY, 6) };
             },
             insertBeforeSelector: '#download-button',
             onRecordingStart: () => {
