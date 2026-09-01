@@ -272,7 +272,7 @@
             TEAL: '#44AA99',
             PINK: '#CC6677',
             LIME: '#BBCC33',
-            ORANGE: '#FF9B4F'
+            ORANGE: '#332288'
         };
 
         // Game state
@@ -832,14 +832,12 @@
                     [0, 0, 0, 0, 0, 0]
                 ],
                 avatar: { x: 3, y: 3 },
-                center: { x: 2, y: 2 },
-                initialAvatarColor: 'yellow',
-                targetColor: 'orange',
+                center: { x: 2, y: 1 },
                 corners: {
                     originTopLeft: { x: 0, y: 0, color: 'teal' },
                     originTopRight: { x: 5, y: 0, color: 'teal' },
-                    originBottomLeft: { x: 0, y: 5, color: 'orange' }, // target
-                    originBottomRight: { x: 5, y: 5, color: 'teal' }
+                    originBottomLeft: { x: 0, y: 5, color: 'orange' },
+                    originBottomRight: { x: 5, y: 5, color: 'teal' } // target
                 }
             };
         }
@@ -976,7 +974,6 @@
 
         // Build levels array
         levels = [
-            level0(),
             level1(),
             level2(),
             level3(),
