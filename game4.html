@@ -265,9 +265,11 @@
         //   - Click the ego cell anywhere else -> reset the whole level
         //     (ego cell returns to its start, movement cycle returns to step 1)
         //
-        // Each level's movementCycle is a list of [dx, dy] offsets applied one
-        // per environment-click, looping forever. dx: +1 = right, -1 = left.
-        // dy: -1 = up, +1 = down.
+        // Each level's movementCycle is a list of [dx, dy] entries. Each entry
+        // is a DELTA applied to the ego cell's CURRENT position (not its start
+        // position) on one environment-click: newPos = currentPos + [dx, dy],
+        // then wrapped toroidally. The list is consumed one entry per click and
+        // loops forever. dx: +1 = right, -1 = left. dy: -1 = up, +1 = down.
         // ===========================
 
         const BLURB = 'There are no instructions for this game, intentionally.<br>Click the mouse to discover the controls, rules, and objective.';
@@ -306,8 +308,13 @@
                 "wrap": "toroidal - the grid wraps on both axes (left<->right and top<->bottom)",
                 "dx": "-1 = left, +1 = right, 0 = no horizontal movement",
                 "dy": "-1 = up, +1 = down, 0 = no vertical movement",
-                "movement": "each click on a non-ego cell applies the next [dx,dy] in the level's movement cycle to the ego cell"
+                "movement": "each click on a non-ego cell consumes the next [dx,dy] entry of the level's movement cycle and applies it as a DELTA to the ego cell's CURRENT position (not its start position): newPos = currentPos + [dx,dy], then wrapped toroidally. The cycle loops after its last entry."
             },
+            // Per-level movement cycles. Each entry of a `cycle` is a [dx, dy]
+            // delta applied to the ego cell's CURRENT position on one
+            // environment-click (not an absolute cell, and not relative to the
+            // start position). Populated at startup from the level definitions.
+            movementCycles: [],
             sessionStart: new Date().toISOString(),
             events: []
         };
@@ -610,6 +617,12 @@
         }
 
         function logEvent(clickedCell, clickTarget, action) {
+            // For an environment click, deltaApplied is the [dx, dy] entry that
+            // this click applies to the ego cell's CURRENT position (egoPosBefore).
+            // egoPosAfter = wrap(egoPosBefore + deltaApplied). Null for ego clicks.
+            const deltaApplied = (clickTarget === 'environment' && gameState.movementCycle.length)
+                ? [...gameState.movementCycle[gameState.cycleStep]]
+                : null;
             sessionData.events.push({
                 timestamp: new Date().toISOString(),
                 level: currentLevelIndex + 1,
@@ -617,6 +630,7 @@
                 clickTarget: clickTarget,       // 'environment' | 'ego' | 'ego_on_collection'
                 action: action,                 // 'advance_cycle' | 'reset_level' | 'win'
                 cycleStepBefore: gameState.cycleStep,
+                deltaApplied: deltaApplied,     // [dx, dy] delta added to egoPosBefore (current position)
                 clickCountBefore: gameState.clickCount,
                 egoPosBefore: { ...gameState.egoPos },
                 collectionPos: { ...gameState.collectionPos },
@@ -755,6 +769,17 @@
             level6()
         ];
 
+        // Record each level's movement cycle in the session data. Every entry
+        // of `cycle` is a [dx, dy] delta applied to the ego cell's CURRENT
+        // position on one environment-click (not an absolute cell, not relative
+        // to the start position); the cycle loops after its last entry.
+        sessionData.movementCycles = levels.map(level => ({
+            level: level.id,
+            playable: level.isPlayable,
+            deltasRelativeTo: "current position of the ego cell at click time",
+            cycle: level.movementCycle.map(step => [...step])
+        }));
+
         initGrid();
         loadLevel(0);
 
@@ -768,6 +793,12 @@
                     egoPos: { ...gameState.egoPos },
                     collectionPos: { ...gameState.collectionPos },
                     cycleStep: gameState.cycleStep,
+                    // Full cycle for this level; each [dx,dy] is a delta applied
+                    // to the ego cell's CURRENT position on one environment-click.
+                    movementCycle: gameState.movementCycle.map(step => [...step]),
+                    nextDelta: gameState.movementCycle.length
+                        ? [...gameState.movementCycle[gameState.cycleStep]]
+                        : null,
                     clickCount: gameState.clickCount,
                     isPlayable: gameState.isPlayable,
                     gameStateMatrix: generateGameStateMatrix()
