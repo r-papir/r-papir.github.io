@@ -103,7 +103,7 @@
             display: none;
         }
 
-        #restart-button, #download-button {
+        #restart-button, #download-button, #skip-button {
             position: fixed;
             top: 20px;
             padding: 15px 30px;
@@ -121,6 +121,13 @@
         #restart-button {
             left: 20px;
             display: none;
+        }
+
+        /* Sits in the same top-left slot as #restart-button; the two are never
+           shown at the same time (skip while playing, restart once complete). */
+        #skip-button {
+            left: 20px;
+            display: block;
         }
 
         #download-button {
@@ -141,7 +148,7 @@
             top: 100px;
         }
 
-        #restart-button:hover, #download-button:hover {
+        #restart-button:hover, #download-button:hover, #skip-button:hover {
             background-color: #1a1a1a;
             color: #ffffff;
         }
@@ -315,6 +322,7 @@
         <div id="grid"></div>
     </div>
     <button id="restart-button">Start Over</button>
+    <button id="skip-button">Skip Level</button>
     <button id="download-button">Download Data</button>
 
     <script src="webgazer.js"></script>
@@ -672,6 +680,7 @@
                     // Game complete - show restart button and upload data
                     gridElement.classList.remove('fade-out');
                     instructionsElement.classList.remove('fade-out');
+                    document.getElementById('skip-button').style.display = 'none';
                     document.getElementById('restart-button').style.display = 'block';
                     handleGameComplete();
                     showCompletionMessage('D');
@@ -774,7 +783,39 @@
             currentLevelIndex = 0;
             isTransitioning = false;
             document.getElementById('restart-button').style.display = 'none';
+            document.getElementById('skip-button').style.display = 'block';
             loadLevel(currentLevelIndex);
+        });
+
+        // Skip button - advance to the next level without solving it. Mirrors
+        // the win transition (same fade + timing) but logs a 'skip_level' event
+        // instead of a 'win', and skips the ripple.
+        document.getElementById('skip-button').addEventListener('click', () => {
+            if (isTransitioning) return;
+            if (currentLevelIndex >= levels.length) return;
+
+            logEvent({ x: null, y: null }, 'skip_button', 'skip_level');
+            isTransitioning = true;
+
+            const gridElement = document.getElementById('grid');
+            const instructionsElement = document.getElementById('instructions');
+            gridElement.classList.add('fade-out');
+            instructionsElement.classList.add('fade-out');
+
+            setTimeout(() => {
+                currentLevelIndex++;
+                isTransitioning = false;
+                if (currentLevelIndex < levels.length) {
+                    loadLevel(currentLevelIndex);
+                } else {
+                    gridElement.classList.remove('fade-out');
+                    instructionsElement.classList.remove('fade-out');
+                    document.getElementById('skip-button').style.display = 'none';
+                    document.getElementById('restart-button').style.display = 'block';
+                    handleGameComplete();
+                    showCompletionMessage('D');
+                }
+            }, 800);
         });
 
         document.getElementById('download-button').addEventListener('click', () => {
