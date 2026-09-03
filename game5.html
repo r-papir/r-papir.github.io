@@ -363,23 +363,31 @@
         // The player drives one ego vehicle with the arrow keys (one cell per
         // press, 4 directions, blocked by the grid edge - no wrap).
         //
-        // Viewing platform: a fixed block of grey cells (level 1: the bottom-left
-        // 3x3, columns 1-3 / rows 6-8). It is always visible and is walkable.
+        // Viewing platform: a fixed block of grey cells, per level (level 1: the
+        // bottom-left 3x3, cols 1-3 / rows 6-8; level 2: the top-right 3x3, cols
+        // 6-8 / rows 1-3). Always visible, walkable.
         //
-        // Token cells: the collectibles. A token is INVISIBLE unless the ego
-        // vehicle is currently standing on a platform cell - then every
-        // uncollected token in the environment is revealed. Off the platform the
-        // player sees nothing but must remember where the tokens were; the game
-        // keeps tracking them the whole time.
+        // Token cells: the collectibles. By default a token is INVISIBLE unless
+        // the ego is currently standing on a platform cell - then every
+        // uncollected token is revealed. Off the platform the player sees
+        // nothing and must remember where the tokens were. A token flagged
+        // `alwaysVisible` is instead drawn in both modes.
         //
-        // Collecting: stepping the ego onto a token cell collects it. From then
-        // on that cell shows a persistent "collected" marker in BOTH visibility
-        // modes (on or off the platform).
+        // Shifting: every uncollected token advances one step along a fixed,
+        // per-level loop each time the ego makes a move - deterministic and
+        // turn-based, regardless of where the ego goes. Hidden tokens keep
+        // shifting while hidden. A press blocked by the grid edge is not a move:
+        // nothing shifts and the move counter does not change.
+        //
+        // Collecting: a token is collected when it shares the ego's cell either
+        // right after the ego moves OR after the tokens shift that same turn
+        // (whichever happens first). A collected token FREEZES on the cell where
+        // it was caught, stops shifting, and shows a persistent "collected"
+        // marker in both visibility modes.
         //
         // Objective: collect every token, ideally in the fewest moves. A move
         // counter (styled like Puzzle 4's) shows from level 1 on; it resets each
-        // level and counts only presses that actually move the ego (a press
-        // blocked by the grid edge does not count). The level completes
+        // level and counts only presses that move the ego. The level completes
         // automatically once every token is collected.
         // ===========================
 
@@ -405,7 +413,9 @@
             isPlayable: false,
             egoPos: { x: 1, y: 1 },
             platform: [],   // viewing-platform cells: [{ x, y }, ...] (1-based)
-            tokens: [],     // [{ x, y, collected }, ...] (1-based)
+            // runtime tokens: [{ x, y, start, loop, step, alwaysVisible,
+            //                    collected, collectedAt }, ...] (1-based)
+            tokens: [],
             moveCount: 0,   // ego moves this level (blocked presses excluded)
             colors: {}
         };
@@ -416,8 +426,8 @@
             legend: {
                 "E": "Empty - background cell",
                 "P": "Platform - viewing-platform cell (grey, always visible, walkable)",
-                "T": "Token - an uncollected token cell (only shown to the player while the ego is on the platform; always recorded here)",
-                "C": "Collected - a token cell that has been collected (persistent marker)",
+                "T": "Token - an uncollected token cell. Recorded here at its true position on every turn. Only shown to the player while the ego is on the platform, unless the token is flagged alwaysVisible. Shifts one step along a per-level loop on each ego move (see tokenLoops).",
+                "C": "Collected - a token that has been collected; frozen on its collection cell and shown in both visibility modes.",
                 "V": "Vehicle - the player's ego vehicle"
             },
             coordinates: {
@@ -426,7 +436,8 @@
                 "x": "column, increases left to right (1-8)",
                 "y": "row, increases top to bottom (1-8)",
                 "movement": "Arrow keys move the ego vehicle one cell (Up/Down/Left/Right); a move into the grid edge is blocked and does not count. No wrap.",
-                "collection": "Stepping the ego onto a token cell collects it. A token is only visible to the player while the ego is on a platform cell; collected cells are marked in both modes."
+                "shifting": "Each uncollected token advances one step along a fixed per-level loop every time the ego moves. A press blocked by the grid edge is not a move and shifts nothing. See sessionData.tokenLoops for the loops.",
+                "collection": "A token is collected when it shares the ego's cell right after the ego moves, or after the tokens shift that same turn. Collected tokens freeze on their collection cell and stop shifting. The level ends when every token is collected."
             },
             sessionStart: new Date().toISOString(),
             events: []
@@ -436,9 +447,18 @@
         // Level definitions
         //
         // Schema:
-        //   egoStart : { x, y }         ego vehicle's start cell (required)
-        //   platform : [ { x, y }, ... ] viewing-platform cells (required; [] = none)
-        //   tokens   : [ { x, y }, ... ] token cells to collect (required; [] = none)
+        //   egoStart : { x, y }          ego vehicle's start cell (required)
+        //   platform : [ { x, y }, ... ]  viewing-platform cells (required; [] = none)
+        //   tokens   : [ token, ... ]     collectibles (required; [] = none), where
+        //       token = {
+        //         start        : { x, y }        start cell (required; == loop[0])
+        //         alwaysVisible : boolean         default false. true -> drawn in
+        //                                         both modes; false -> only while
+        //                                         the ego is on the platform.
+        //         loop          : [ { x, y }, ... ] default [start]. Cells the token
+        //                                         shifts through, one per ego move,
+        //                                         looping forever. Length 1 = static.
+        //       }
         //   colors   : { ego, platform, token, collected }
         // ---------------------------------------------------------------
 
@@ -464,15 +484,51 @@
 
         function level1() {
             // Viewing platform: the bottom-left 3x3 (columns 1-3, rows 6-8).
-            // Ego starts at (3,3), off the platform, so the single token at
-            // (6,6) is hidden until the player drives onto the pad.
+            // Ego starts at (3,3), off the platform, so the single static token
+            // at (6,6) is hidden until the player drives onto the pad.
             return {
                 id: 1,
                 name: "Level 1",
                 isPlayable: true,
                 egoStart: { x: 3, y: 3 },
                 platform: rectCells(1, 6, 3, 3),
-                tokens: [ { x: 6, y: 6 } ],
+                tokens: [ { start: { x: 6, y: 6 } } ],
+                colors: { ...COLORS }
+            };
+        }
+
+        function level2() {
+            // Viewing platform: the top-right 3x3 (columns 6-8, rows 1-3). Ego
+            // starts at (1,8), the opposite corner. Introduces "shifting":
+            // every uncollected token steps one cell along a fixed loop on each
+            // ego move.
+            //
+            //   Token A - alwaysVisible (both modes). Loop from (3,2):
+            //     (3,2) -> (3,3) -> (2,3) -> (2,2) -> repeat
+            //   Token B - hidden unless the ego is on the platform; keeps
+            //   shifting while hidden. Loop from (6,6):
+            //     (6,6) -> (7,6) -> (7,7) -> (6,7) -> repeat
+            //
+            // A collected token freezes on the cell where it was caught and
+            // stops shifting. The level ends when both tokens are collected.
+            return {
+                id: 2,
+                name: "Level 2",
+                isPlayable: true,
+                egoStart: { x: 1, y: 8 },
+                platform: rectCells(6, 1, 3, 3),
+                tokens: [
+                    {
+                        start: { x: 3, y: 2 },
+                        alwaysVisible: true,
+                        loop: [ { x: 3, y: 2 }, { x: 3, y: 3 }, { x: 2, y: 3 }, { x: 2, y: 2 } ]
+                    },
+                    {
+                        start: { x: 6, y: 6 },
+                        alwaysVisible: false,
+                        loop: [ { x: 6, y: 6 }, { x: 7, y: 6 }, { x: 7, y: 7 }, { x: 6, y: 7 } ]
+                    }
+                ],
                 colors: { ...COLORS }
             };
         }
@@ -525,7 +581,26 @@
             gameState.isPlayable = level.isPlayable;
             gameState.egoPos = { ...level.egoStart };
             gameState.platform = (level.platform || []).map(c => ({ ...c }));
-            gameState.tokens = (level.tokens || []).map(t => ({ x: t.x, y: t.y, collected: false }));
+            gameState.tokens = (level.tokens || []).map(t => {
+                const start = { ...t.start };
+                const loop = (t.loop && t.loop.length)
+                    ? t.loop.map(c => ({ x: c.x, y: c.y }))
+                    : [ { ...start } ];
+                // The level definitions list `start` as loop[0]; find it so the
+                // token begins at the right point in its cycle.
+                let step = loop.findIndex(c => c.x === start.x && c.y === start.y);
+                if (step < 0) step = 0;
+                return {
+                    x: loop[step].x,
+                    y: loop[step].y,
+                    start: start,
+                    loop: loop,
+                    step: step,
+                    alwaysVisible: !!t.alwaysVisible,
+                    collected: false,
+                    collectedAt: null
+                };
+            });
             gameState.moveCount = 0;
             gameState.colors = { ...level.colors };
 
@@ -561,16 +636,18 @@
 
             if (!gameState.isPlayable) return;
 
-            const revealTokens = isOnPlatform(gameState.egoPos);
+            const egoOnPlatform = isOnPlatform(gameState.egoPos);
 
-            // Tokens: a collected token always shows its "collected" marker; an
-            // uncollected token is only drawn while the ego is on the platform.
+            // Tokens. A collected token always shows its "collected" marker
+            // (frozen on its collection cell). An uncollected token is drawn as
+            // a token if it is alwaysVisible, or if the ego is on the platform;
+            // otherwise it is hidden and nothing is drawn.
             for (const t of gameState.tokens) {
                 const cell = document.getElementById(`cell-${t.x}-${t.y}`);
                 if (!cell) continue;
                 if (t.collected) {
                     cell.style.backgroundColor = c.collected || COLORS.collected;
-                } else if (revealTokens) {
+                } else if (t.alwaysVisible || egoOnPlatform) {
                     cell.style.backgroundColor = c.token || COLORS.token;
                 }
             }
@@ -609,34 +686,86 @@
             moveEgo(e.key, delta.dx, delta.dy);
         });
 
-        // Apply one arrow-key move to the ego vehicle. A move off the grid edge
-        // is blocked and does not count. Stepping onto an uncollected token
-        // collects it; collecting the last token wins the level.
+        // Resolve one arrow-key turn:
+        //   1. If the target cell is off the grid, the press is blocked - no
+        //      move, no shift, the move counter is unchanged.
+        //   2. The ego moves one cell; the move counter increments.
+        //   3. Any uncollected token now sharing the ego's cell is collected.
+        //   4. Every remaining uncollected token shifts one step along its loop.
+        //   5. Any token that shifted onto the ego is collected too.
+        //   6. Collecting the last token wins the level.
         function moveEgo(key, dx, dy) {
             const nx = gameState.egoPos.x + dx;
             const ny = gameState.egoPos.y + dy;
 
-            // Blocked by the grid edge - no move, does not count.
+            // 1. Blocked by the grid edge.
             if (nx < 1 || nx > GRID_SIZE || ny < 1 || ny > GRID_SIZE) {
                 logEvent('blocked', { key: key });
                 return;
             }
 
-            const token = gameState.tokens.find(t => !t.collected && t.x === nx && t.y === ny);
-            const willWin = !!token &&
-                gameState.tokens.every(t => t.collected || t === token);
+            // logEvent snapshots the pre-turn state; the outcome is filled in
+            // once the turn has resolved.
+            logEvent('move', { key: key });
+            const evt = sessionData.events[sessionData.events.length - 1];
 
-            // logEvent snapshots the pre-move state, so log before mutating.
-            logEvent(willWin ? 'win' : (token ? 'collect' : 'move'), { key: key });
-
+            // 2. Ego moves.
             gameState.egoPos = { x: nx, y: ny };
             gameState.moveCount++;
-            if (token) token.collected = true;
+
+            // 3. Collect a token the ego stepped onto (before it shifts).
+            let collected = collectAtEgo();
+
+            // 4. Remaining uncollected tokens shift one step along their loop.
+            shiftTokens();
+
+            // 5. Collect a token that shifted onto the ego this turn.
+            collected += collectAtEgo();
+
+            const allCollected = gameState.tokens.length > 0 &&
+                                 gameState.tokens.every(t => t.collected);
+
+            evt.outcome = allCollected ? 'win' : (collected > 0 ? 'collect' : 'move');
+            evt.tokensAfter = gameState.tokens.map(tokenSnapshot);
 
             renderGrid();
             updateMoveCounter();
 
-            if (willWin) handleWin();
+            if (allCollected) handleWin();
+        }
+
+        // Collect (and freeze) every uncollected token sharing the ego's cell.
+        // Returns how many were collected by this call.
+        function collectAtEgo() {
+            let n = 0;
+            for (const t of gameState.tokens) {
+                if (t.collected) continue;
+                if (t.x === gameState.egoPos.x && t.y === gameState.egoPos.y) {
+                    t.collected = true;
+                    t.collectedAt = { x: t.x, y: t.y };
+                    n++;
+                }
+            }
+            return n;
+        }
+
+        // Advance every uncollected, non-static token one step along its loop.
+        function shiftTokens() {
+            for (const t of gameState.tokens) {
+                if (t.collected || t.loop.length <= 1) continue;
+                t.step = (t.step + 1) % t.loop.length;
+                t.x = t.loop[t.step].x;
+                t.y = t.loop[t.step].y;
+            }
+        }
+
+        function tokenSnapshot(t) {
+            return {
+                x: t.x, y: t.y,
+                step: t.step,
+                alwaysVisible: t.alwaysVisible,
+                collected: t.collected
+            };
         }
 
         function handleWin() {
@@ -752,8 +881,11 @@
         }
 
         function logEvent(outcome, detail) {
-            // outcome: 'move' | 'collect' | 'blocked' | 'win' | 'skip_level'
-            // Every *Before field is a snapshot from BEFORE this event applies.
+            // outcome: 'move' | 'collect' | 'blocked' | 'win' | 'skip_level'.
+            // For an ego move it is logged as 'move' up front and patched to
+            // 'collect' / 'win' once the turn resolves; that same patch adds a
+            // `tokensAfter` field. Every *Before field is a snapshot from BEFORE
+            // this event applies.
             detail = detail || {};
             sessionData.events.push({
                 timestamp: new Date().toISOString(),
@@ -764,6 +896,7 @@
                 egoPosBefore: { ...gameState.egoPos },
                 egoOnPlatformBefore: isOnPlatform(gameState.egoPos),
                 tokensRemainingBefore: gameState.tokens.filter(t => !t.collected).length,
+                tokensBefore: gameState.tokens.map(tokenSnapshot),
                 gameStateBefore: generateGameStateMatrix()
             });
         }
@@ -930,8 +1063,24 @@
         if (!window.__puzzle5Unauthorized) {
 
         levels = [
-            level1()
+            level1(),
+            level2()
         ];
+
+        // Per-level token loops, for the data. Each uncollected token advances
+        // one step along its `loop` on every ego move (a press blocked by the
+        // grid edge is not a move). `start` is loop[0]. `alwaysVisible` tokens
+        // are drawn in both visibility modes; the rest are only shown while the
+        // ego is on the platform. A collected token freezes on its collection
+        // cell and stops shifting.
+        sessionData.tokenLoops = levels.map(level => ({
+            level: level.id,
+            tokens: (level.tokens || []).map(t => ({
+                start: { ...t.start },
+                alwaysVisible: !!t.alwaysVisible,
+                loop: (t.loop && t.loop.length ? t.loop : [ t.start ]).map(c => ({ x: c.x, y: c.y }))
+            }))
+        }));
 
         initGrid();
         loadLevel(0);
@@ -941,12 +1090,19 @@
             gamePrefix: 'puzzle-game5',
             gameName: 'Game 5',
             getGameState: function() {
+                const egoOnPlatform = isOnPlatform(gameState.egoPos);
                 return {
                     level: currentLevelId(),
                     egoPos: { ...gameState.egoPos },
-                    egoOnPlatform: isOnPlatform(gameState.egoPos),
+                    egoOnPlatform: egoOnPlatform,
                     moveCount: gameState.moveCount,
-                    tokens: gameState.tokens.map(t => ({ x: t.x, y: t.y, collected: t.collected })),
+                    tokens: gameState.tokens.map(t => ({
+                        x: t.x, y: t.y,
+                        step: t.step,
+                        alwaysVisible: t.alwaysVisible,
+                        collected: t.collected,
+                        visibleToPlayer: t.collected || t.alwaysVisible || egoOnPlatform
+                    })),
                     tokensRemaining: gameState.tokens.filter(t => !t.collected).length,
                     isPlayable: gameState.isPlayable,
                     gameStateMatrix: generateGameStateMatrix()
