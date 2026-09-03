@@ -903,10 +903,12 @@
         // Interaction (keyboard only)
         // ---------------------------------------------------------------
 
-        // The player may only work one arrow key at a time. While a key is held
-        // down, every other arrow key is ignored until that key is released
-        // (tracked here; keyup clears it, and a window blur clears it too so a
-        // missed keyup can't wedge the controls).
+        // The player may only work one arrow key at a time. While a key that
+        // moved a piece is held down, every other arrow key is ignored until it
+        // is released (tracked here; keyup clears it, and a window blur clears
+        // it too so a missed keyup can't wedge the controls). A key that does
+        // nothing this level (empty cycle / absent piece) never takes the lock,
+        // so holding e.g. Down on a level with no ego 3 does not block Left.
         let heldKey = null;
 
         document.addEventListener('keydown', (e) => {
@@ -917,13 +919,12 @@
 
             if (e.repeat) return;        // one press = one step; ignore auto-repeat
             if (heldKey !== null) return; // another arrow key is still held down
-            heldKey = e.key;
-
             if (isTransitioning) return;
             if (currentLevelIndex >= levels.length) return;
             if (!gameState.isPlayable) return;
 
-            movePiece(piece);
+            // Take the one-key lock only when the press actually moves a piece.
+            if (movePiece(piece)) heldKey = e.key;
         });
 
         document.addEventListener('keyup', (e) => {
@@ -934,13 +935,14 @@
 
         // Advance one piece's movement cycle by a single step: apply the next
         // [dx,dy] delta to that piece's current position (toroidal wrap), then
-        // consume the entry. If moving ego 1 or ego 2 puts the two on the same
-        // cell, the level is won.
+        // consume the entry. Wins the level if the move makes every ego cell
+        // present this level share a square. Returns true if a piece moved,
+        // false if the call was a no-op.
         function movePiece(piece) {
             const cycle = gameState[piece + 'Cycle'];
             const pos = gameState[piece + 'Pos'];
             // Piece absent this level, or this key has no cycle -> no-op.
-            if (!pos || !cycle || cycle.length === 0) return;
+            if (!pos || !cycle || cycle.length === 0) return false;
 
             const stepKey = piece + 'Step';
             const [dx, dy] = cycle[gameState[stepKey]];
@@ -976,6 +978,7 @@
             updateMoveCounter();
 
             if (isWin) handleWin();
+            return true;
         }
 
         function handleWin() {
