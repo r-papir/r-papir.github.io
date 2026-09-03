@@ -452,7 +452,20 @@
             // under ego 1 at the start. No ego 3 in this level, so the Down
             // arrow does nothing here.
             //
-            // Cycles pending respecification under the new keyboard mechanic.
+            // ego 1 walks a counter-clockwise diamond around the top of the
+            // grid, returning to the center every 4 Left presses:
+            //   (3,3) -> (4,2) -> (3,1) -> (2,2) -> (3,3)
+            //
+            // ego 2 is the point-reflection of ego 1 through the center: while
+            // ego 1 is at (x,y), the intended matching ego 2 cell is (6-x,6-y).
+            // So ego 2's cycle is ego 1's cycle with every delta negated, which
+            // sends it clockwise around the BOTTOM of the grid, returning to the
+            // center every 4 Right presses:
+            //   (3,3) -> (2,4) -> (3,5) -> (4,4) -> (3,3)
+            //
+            // The only cell both pieces ever occupy is the center, so they can
+            // only converge (win) there - when Left and Right have each been
+            // pressed a matching multiple of 4 times.
             return {
                 id: 1,
                 name: "Level 1",
@@ -465,7 +478,12 @@
                     [-1, 1],
                     [1, 1]
                 ],
-                ego2Cycle: [],
+                ego2Cycle: [
+                    [-1, 1],
+                    [1, 1],
+                    [1, -1],
+                    [-1, -1]
+                ],
                 colors: {
                     ego1: '#E491A6',  // pink
                     ego2: '#44AA99'   // teal
