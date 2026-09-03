@@ -604,33 +604,53 @@
             };
         }
 
-        function level3() { return blankLevel(3); }
-
-        function level4() {
-            // ego 1 (blue) is driven by the Left arrow key and starts at (2,2);
-            // ego 2 (orange) is driven by the Right arrow key and starts at
-            // (5,3): right-most column, middle row. No ego 3.
+        function level3() {
+            // ego 1 (blue, Left arrow) and ego 2 (orange, Right arrow) each run
+            // a fixed closed loop of cells. No ego 3.
             //
-            // Cycles pending respecification under the new keyboard mechanic.
+            // ego 1 begins at (3,4); each Left press walks it one cell along:
+            //   (3,4) (4,4) (4,5) (5,5) (1,1) (2,1) (3,1) (3,2) (3,3) -> back to (3,4)
+            //
+            // ego 2 begins at (5,2); each Right press walks it one cell along:
+            //   (5,2) (4,2) (4,3) (3,3) (2,3) (2,4) (2,5) (1,5) -> back to (5,2)
+            //
+            // The two loops share exactly one cell - (3,3) - so that is the only
+            // win cell. The starts (3,4) and (5,2) differ, so no first-move win.
             return {
-                id: 4,
-                name: "Level 4",
+                id: 3,
+                name: "Level 3",
                 isPlayable: true,
-                ego1Start: { x: 2, y: 2 },
-                ego2Start: { x: 5, y: 3 },
+                ego1Start: { x: 3, y: 4 },
+                ego2Start: { x: 5, y: 2 },
                 ego1Cycle: [
-                    [1, -1],
-                    [-1, -1],
-                    [-1, 1],
-                    [2, 2]
+                    [1, 0],
+                    [0, 1],
+                    [1, 0],
+                    [1, 1],
+                    [1, 0],
+                    [1, 0],
+                    [0, 1],
+                    [0, 1],
+                    [0, 1]
                 ],
-                ego2Cycle: [],
+                ego2Cycle: [
+                    [-1, 0],
+                    [0, 1],
+                    [-1, 0],
+                    [-1, 0],
+                    [0, 1],
+                    [0, 1],
+                    [-1, 0],
+                    [-1, 2]
+                ],
                 colors: {
                     ego1: '#ADD8E6',  // blue
                     ego2: '#FF5F15'   // orange
                 }
             };
         }
+
+        function level4() { return blankLevel(4); }
 
         function level5() { return blankLevel(5); }
         function level6() { return blankLevel(6); }
