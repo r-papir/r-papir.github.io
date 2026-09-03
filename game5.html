@@ -153,6 +153,25 @@
             color: #ffffff;
         }
 
+        /* Move counter - tucked under the Skip Level button in the top-left.
+           Shown on every level while playing, hidden once the game is
+           complete. Same style as Puzzle 4's counter. */
+        #move-counter {
+            position: fixed;
+            top: 90px;
+            left: 20px;
+            padding: 10px 22px;
+            font-size: 16px;
+            font-weight: 700;
+            font-family: 'Trebuchet MS', monospace;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            border: 3px solid #1a1a1a;
+            border-radius: 8px;
+            z-index: 1000;
+            display: none;
+        }
+
         .cell {
             width: 90px;
             height: 90px;
@@ -323,6 +342,7 @@
     </div>
     <button id="restart-button">Start Over</button>
     <button id="skip-button">Skip Level</button>
+    <div id="move-counter">Moves: 0</div>
     <button id="download-button">Download Data</button>
 
     <script src="webgazer.js"></script>
@@ -338,15 +358,29 @@
         }
 
         // ===========================
-        // PUZZLE 5 - 8x8 grid
+        // PUZZLE 5 - 8x8 grid, "viewing platform" memory puzzle
         // ===========================
-        // Scaffold only. The grid, page chrome (instructions, Skip/Restart/
-        // Download buttons), calibration + authorization gates, ripple/confetti
-        // completion flow, data logging and S3 upload all match the other
-        // puzzles. The game MECHANIC is not designed yet: there is one blank,
-        // non-playable level, no input is bound, and the only way forward is the
-        // Skip Level button. Fill in levels[] and the interaction handlers when
-        // the mechanic is specified.
+        // The player drives one ego vehicle with the arrow keys (one cell per
+        // press, 4 directions, blocked by the grid edge - no wrap).
+        //
+        // Viewing platform: a fixed block of grey cells (level 1: the bottom-left
+        // 3x3, columns 1-3 / rows 6-8). It is always visible and is walkable.
+        //
+        // Token cells: the collectibles. A token is INVISIBLE unless the ego
+        // vehicle is currently standing on a platform cell - then every
+        // uncollected token in the environment is revealed. Off the platform the
+        // player sees nothing but must remember where the tokens were; the game
+        // keeps tracking them the whole time.
+        //
+        // Collecting: stepping the ego onto a token cell collects it. From then
+        // on that cell shows a persistent "collected" marker in BOTH visibility
+        // modes (on or off the platform).
+        //
+        // Objective: collect every token, ideally in the fewest moves. A move
+        // counter (styled like Puzzle 4's) shows from level 1 on; it resets each
+        // level and counts only presses that actually move the ego (a press
+        // blocked by the grid edge does not count). The level completes
+        // automatically once every token is collected.
         // ===========================
 
         const BLURB = 'There are no instructions for this game, intentionally.<br>Explore to discover the controls, rules, and objective.';
@@ -355,12 +389,24 @@
         // Coordinates are 1-based: columns and rows run 1..GRID_SIZE, (1,1) is the
         // top-left cell.
 
+        // Which [dx, dy] each arrow key applies to the ego vehicle.
+        const MOVE_FOR_KEY = {
+            ArrowUp:    { dx: 0, dy: -1 },
+            ArrowDown:  { dx: 0, dy: 1 },
+            ArrowLeft:  { dx: -1, dy: 0 },
+            ArrowRight: { dx: 1, dy: 0 }
+        };
+
         // Game state
         let levels = [];
         let currentLevelIndex = 0;
         let isTransitioning = false; // Prevent overlapping level transitions
         let gameState = {
             isPlayable: false,
+            egoPos: { x: 1, y: 1 },
+            platform: [],   // viewing-platform cells: [{ x, y }, ...] (1-based)
+            tokens: [],     // [{ x, y, collected }, ...] (1-based)
+            moveCount: 0,   // ego moves this level (blocked presses excluded)
             colors: {}
         };
 
@@ -368,13 +414,19 @@
         let sessionData = {
             game: "Game 5",
             legend: {
-                "E": "Empty - background cell"
+                "E": "Empty - background cell",
+                "P": "Platform - viewing-platform cell (grey, always visible, walkable)",
+                "T": "Token - an uncollected token cell (only shown to the player while the ego is on the platform; always recorded here)",
+                "C": "Collected - a token cell that has been collected (persistent marker)",
+                "V": "Vehicle - the player's ego vehicle"
             },
             coordinates: {
                 "grid": "8x8 grid",
                 "origin": "(1,1) is the top-left corner (1-based)",
                 "x": "column, increases left to right (1-8)",
-                "y": "row, increases top to bottom (1-8)"
+                "y": "row, increases top to bottom (1-8)",
+                "movement": "Arrow keys move the ego vehicle one cell (Up/Down/Left/Right); a move into the grid edge is blocked and does not count. No wrap.",
+                "collection": "Stepping the ego onto a token cell collects it. A token is only visible to the player while the ego is on a platform cell; collected cells are marked in both modes."
             },
             sessionStart: new Date().toISOString(),
             events: []
@@ -383,18 +435,63 @@
         // ---------------------------------------------------------------
         // Level definitions
         //
-        // Placeholder until the mechanic is designed. blankLevel() renders an
-        // empty white 8x8 grid with no pieces and no interaction; it is advanced
-        // with the Skip Level button.
+        // Schema:
+        //   egoStart : { x, y }         ego vehicle's start cell (required)
+        //   platform : [ { x, y }, ... ] viewing-platform cells (required; [] = none)
+        //   tokens   : [ { x, y }, ... ] token cells to collect (required; [] = none)
+        //   colors   : { ego, platform, token, collected }
         // ---------------------------------------------------------------
+
+        // Standard palette, reused across levels unless a level overrides it.
+        const COLORS = {
+            ego: '#332288',       // indigo - the player's vehicle
+            platform: '#D3D3D3',  // grey   - viewing platform
+            token: '#DDCC77',     // gold   - a revealed, uncollected token
+            collected: '#44AA99'  // teal   - a collected token cell
+        };
+
+        // Every cell of the w x h rectangle whose top-left corner is (x0, y0),
+        // as a list of 1-based { x, y }.
+        function rectCells(x0, y0, w, h) {
+            const out = [];
+            for (let y = y0; y < y0 + h; y++) {
+                for (let x = x0; x < x0 + w; x++) {
+                    out.push({ x: x, y: y });
+                }
+            }
+            return out;
+        }
+
+        function level1() {
+            // Viewing platform: the bottom-left 3x3 (columns 1-3, rows 6-8).
+            // Ego starts at (6,3), off the platform, so the single token at
+            // (6,6) is hidden until the player drives onto the pad.
+            return {
+                id: 1,
+                name: "Level 1",
+                isPlayable: true,
+                egoStart: { x: 6, y: 3 },
+                platform: rectCells(1, 6, 3, 3),
+                tokens: [ { x: 6, y: 6 } ],
+                colors: { ...COLORS }
+            };
+        }
 
         function blankLevel(id) {
             return {
                 id: id,
                 name: "Level " + id,
                 isPlayable: false,
-                colors: {}
+                egoStart: { x: 1, y: 1 },
+                platform: [],
+                tokens: [],
+                colors: { ...COLORS }
             };
+        }
+
+        // Is `pos` on one of this level's viewing-platform cells?
+        function isOnPlatform(pos) {
+            return gameState.platform.some(c => c.x === pos.x && c.y === pos.y);
         }
 
         // ---------------------------------------------------------------
@@ -426,6 +523,10 @@
             const level = levels[levelIndex];
 
             gameState.isPlayable = level.isPlayable;
+            gameState.egoPos = { ...level.egoStart };
+            gameState.platform = (level.platform || []).map(c => ({ ...c }));
+            gameState.tokens = (level.tokens || []).map(t => ({ x: t.x, y: t.y, collected: false }));
+            gameState.moveCount = 0;
             gameState.colors = { ...level.colors };
 
             const instructionsElement = document.getElementById('instructions');
@@ -433,6 +534,7 @@
             instructionsElement.style.display = 'block';
 
             renderGrid();
+            updateMoveCounter();
 
             const gridElement = document.getElementById('grid');
             gridElement.classList.remove('fade-out');
@@ -440,6 +542,8 @@
         }
 
         function renderGrid() {
+            const c = gameState.colors;
+
             // Reset every cell to empty background
             for (let y = 1; y <= GRID_SIZE; y++) {
                 for (let x = 1; x <= GRID_SIZE; x++) {
@@ -449,16 +553,91 @@
                 }
             }
 
+            // Viewing platform - always visible.
+            for (const p of gameState.platform) {
+                const cell = document.getElementById(`cell-${p.x}-${p.y}`);
+                if (cell) cell.style.backgroundColor = c.platform || COLORS.platform;
+            }
+
             if (!gameState.isPlayable) return;
 
-            // Piece rendering goes here once the mechanic is defined.
+            const revealTokens = isOnPlatform(gameState.egoPos);
+
+            // Tokens: a collected token always shows its "collected" marker; an
+            // uncollected token is only drawn while the ego is on the platform.
+            for (const t of gameState.tokens) {
+                const cell = document.getElementById(`cell-${t.x}-${t.y}`);
+                if (!cell) continue;
+                if (t.collected) {
+                    cell.style.backgroundColor = c.collected || COLORS.collected;
+                } else if (revealTokens) {
+                    cell.style.backgroundColor = c.token || COLORS.token;
+                }
+            }
+
+            // Ego vehicle on top.
+            const e = gameState.egoPos;
+            document.getElementById(`cell-${e.x}-${e.y}`).style.backgroundColor = c.ego || COLORS.ego;
+        }
+
+        // Move counter - under the Skip Level button (top-left). Shown on every
+        // level while playing, hidden once the game is complete (levels[
+        // currentLevelIndex] is undefined then). Displays gameState.moveCount,
+        // which resets with each level.
+        function updateMoveCounter() {
+            const el = document.getElementById('move-counter');
+            if (!el) return;
+            el.style.display = levels[currentLevelIndex] ? 'block' : 'none';
+            el.textContent = 'Moves: ' + gameState.moveCount;
         }
 
         // ---------------------------------------------------------------
-        // Interaction
+        // Interaction (keyboard only)
         // ---------------------------------------------------------------
-        // No input is bound yet - add the keydown / click handlers here when the
-        // mechanic is specified, and call handleWin() when a level is solved.
+
+        document.addEventListener('keydown', (e) => {
+            const delta = MOVE_FOR_KEY[e.key];
+            if (!delta) return;
+
+            e.preventDefault();          // arrow keys otherwise scroll the page
+
+            if (e.repeat) return;        // one press = one move; ignore auto-repeat
+            if (isTransitioning) return;
+            if (currentLevelIndex >= levels.length) return;
+            if (!gameState.isPlayable) return;
+
+            moveEgo(e.key, delta.dx, delta.dy);
+        });
+
+        // Apply one arrow-key move to the ego vehicle. A move off the grid edge
+        // is blocked and does not count. Stepping onto an uncollected token
+        // collects it; collecting the last token wins the level.
+        function moveEgo(key, dx, dy) {
+            const nx = gameState.egoPos.x + dx;
+            const ny = gameState.egoPos.y + dy;
+
+            // Blocked by the grid edge - no move, does not count.
+            if (nx < 1 || nx > GRID_SIZE || ny < 1 || ny > GRID_SIZE) {
+                logEvent('blocked', { key: key });
+                return;
+            }
+
+            const token = gameState.tokens.find(t => !t.collected && t.x === nx && t.y === ny);
+            const willWin = !!token &&
+                gameState.tokens.every(t => t.collected || t === token);
+
+            // logEvent snapshots the pre-move state, so log before mutating.
+            logEvent(willWin ? 'win' : (token ? 'collect' : 'move'), { key: key });
+
+            gameState.egoPos = { x: nx, y: ny };
+            gameState.moveCount++;
+            if (token) token.collected = true;
+
+            renderGrid();
+            updateMoveCounter();
+
+            if (willWin) handleWin();
+        }
 
         function handleWin() {
             isTransitioning = true;
@@ -481,6 +660,7 @@
                     instructionsElement.classList.remove('fade-out');
                     document.getElementById('skip-button').style.display = 'none';
                     document.getElementById('restart-button').style.display = 'block';
+                    updateMoveCounter();
                     handleGameComplete();
                     showCompletionMessage('5');
                 }
@@ -544,8 +724,22 @@
 
         function generateGameStateMatrix() {
             // matrix is a plain 0-based array; coordinates are 1-based, so index
-            // with -1. Only 'E' (empty) is used until the mechanic adds pieces.
+            // with -1. 'E' empty, 'P' platform, 'T' uncollected token,
+            // 'C' collected token, 'V' ego vehicle. This records ground truth -
+            // 'T' is written even when the token is not currently visible to the
+            // player. The ego is written last so it wins a shared cell.
+            const inBounds = (p) => p.x >= 1 && p.x <= GRID_SIZE && p.y >= 1 && p.y <= GRID_SIZE;
             const matrix = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('E'));
+
+            for (const p of gameState.platform) {
+                if (inBounds(p)) matrix[p.y - 1][p.x - 1] = 'P';
+            }
+            for (const t of gameState.tokens) {
+                if (inBounds(t)) matrix[t.y - 1][t.x - 1] = t.collected ? 'C' : 'T';
+            }
+            if (gameState.isPlayable && inBounds(gameState.egoPos)) {
+                matrix[gameState.egoPos.y - 1][gameState.egoPos.x - 1] = 'V';
+            }
             return matrix;
         }
 
@@ -558,13 +752,18 @@
         }
 
         function logEvent(outcome, detail) {
-            // outcome: 'skip_level' | 'win' | ... (add as the mechanic grows)
+            // outcome: 'move' | 'collect' | 'blocked' | 'win' | 'skip_level'
+            // Every *Before field is a snapshot from BEFORE this event applies.
             detail = detail || {};
             sessionData.events.push({
                 timestamp: new Date().toISOString(),
                 level: currentLevelId(),
-                key: detail.key || null,
+                key: detail.key || null,               // 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight' | null
                 outcome: outcome,
+                moveCountBefore: gameState.moveCount,
+                egoPosBefore: { ...gameState.egoPos },
+                egoOnPlatformBefore: isOnPlatform(gameState.egoPos),
+                tokensRemainingBefore: gameState.tokens.filter(t => !t.collected).length,
                 gameStateBefore: generateGameStateMatrix()
             });
         }
@@ -606,6 +805,7 @@
                     instructionsElement.classList.remove('fade-out');
                     document.getElementById('skip-button').style.display = 'none';
                     document.getElementById('restart-button').style.display = 'block';
+                    updateMoveCounter();
                     handleGameComplete();
                     showCompletionMessage('5');
                 }
@@ -730,7 +930,7 @@
         if (!window.__puzzle5Unauthorized) {
 
         levels = [
-            blankLevel(1)
+            level1()
         ];
 
         initGrid();
@@ -743,6 +943,11 @@
             getGameState: function() {
                 return {
                     level: currentLevelId(),
+                    egoPos: { ...gameState.egoPos },
+                    egoOnPlatform: isOnPlatform(gameState.egoPos),
+                    moveCount: gameState.moveCount,
+                    tokens: gameState.tokens.map(t => ({ x: t.x, y: t.y, collected: t.collected })),
+                    tokensRemaining: gameState.tokens.filter(t => !t.collected).length,
                     isPlayable: gameState.isPlayable,
                     gameStateMatrix: generateGameStateMatrix()
                 };
