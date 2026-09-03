@@ -518,19 +518,19 @@
             //
             // ego 2 - the point-reflection of ego 1's diamond through the center
             // (every cell (x,y) mirrored to (6-x,6-y)), traversed clockwise,
-            // starts at (4,4):
-            //   (4,4) -> (3,3) -> (2,4) -> (3,5) -> (4,4)
+            // starts at (2,4):
+            //   (2,4) -> (3,5) -> (4,4) -> (3,3) -> (2,4)
             //
             // The two diamonds share only the center (3,3), so that is the only
             // win cell - reached when the Left and Right press counts line up to
             // put both pieces on (3,3) at the same time. The starts (4,2) and
-            // (4,4) differ, so the pieces do not start overlapping.
+            // (2,4) differ, so the pieces do not start overlapping.
             return {
                 id: 1,
                 name: "Level 1",
                 isPlayable: true,
                 ego1Start: { x: 4, y: 2 },
-                ego2Start: { x: 4, y: 4 },
+                ego2Start: { x: 2, y: 4 },
                 ego1Cycle: [
                     [-1, -1],
                     [-1, 1],
@@ -538,10 +538,10 @@
                     [1, -1]
                 ],
                 ego2Cycle: [
-                    [-1, -1],
-                    [-1, 1],
                     [1, 1],
-                    [1, -1]
+                    [1, -1],
+                    [-1, -1],
+                    [-1, 1]
                 ],
                 colors: {
                     ego1: '#E491A6',  // pink
