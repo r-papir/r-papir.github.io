@@ -315,7 +315,7 @@
 
     <div id="instructions">
         There are no instructions for this game, intentionally.<br>
-        Click the mouse to discover the controls, rules, and objective.
+        Use the left, right, and down arrow keys to discover the controls, rules, and objective.
     </div>
     <div id="game-container">
         <div id="ripple-container"></div>
@@ -338,30 +338,35 @@
         }
 
         // ===========================
-        // PUZZLE D - mouse only, 5x5 grid, toroidal (wrap-around) environment
+        // PUZZLE D - keyboard only, 5x5 grid, toroidal (wrap-around) environment
         // ===========================
-        // Every level has:
-        //   - an "ego cell": the player's movable coloured box
-        //   - a "collection cell": a coloured box that sits underneath the ego
-        //     cell and is hidden whenever the ego cell is on top of it
+        // Up to three movable pieces live on the grid:
+        //   - ego 1 : the player's movable coloured box, moved by the LEFT arrow key
+        //   - ego 2 : a second coloured box, moved by the RIGHT arrow key
+        //   - ego 3 : a third coloured box, moved by the DOWN arrow key - only
+        //             present in levels that define an ego3Start / ego3Cycle
+        //             (absent otherwise, so the Down arrow does nothing there)
         //
-        // Controls (mouse only):
-        //   - Click any grid cell that is NOT the ego cell  -> advance the
-        //     movement cycle one step (the ego cell jumps by the current
-        //     cycle offset; the grid wraps on both axes)
-        //   - Click the ego cell while it is ON TOP of the collection cell
-        //     -> win the level
-        //   - Click the ego cell anywhere else -> reset the whole level
-        //     (ego cell returns to its start, movement cycle returns to step 1)
+        // Controls (keyboard only, no mouse):
+        //   - Press Left  -> advance ego 1's movement cycle one step
+        //   - Press Right -> advance ego 2's movement cycle one step
+        //   - Press Down  -> advance ego 3's movement cycle one step
+        //   A press whose piece is absent this level, or whose cycle is empty,
+        //   does nothing. Key auto-repeat (holding a key down) is ignored:
+        //   one press is one step.
         //
-        // Each level's movementCycle is a list of [dx, dy] entries. Each entry
-        // is a DELTA applied to the ego cell's CURRENT position (not its start
-        // position) on one environment-click: newPos = currentPos + [dx, dy],
-        // then wrapped toroidally. The list is consumed one entry per click and
+        // Win: the level completes automatically the instant ego 1 and ego 2
+        // occupy the same cell after a move. There is no click-to-win and no
+        // click-to-reset.
+        //
+        // Each piece's cycle is a list of [dx, dy] entries. Each entry is a
+        // DELTA applied to that piece's CURRENT position (not its start
+        // position) on one key press: newPos = currentPos + [dx, dy], then
+        // wrapped toroidally. The list is consumed one entry per press and
         // loops forever. dx: +1 = right, -1 = left. dy: -1 = up, +1 = down.
         // ===========================
 
-        const BLURB = 'There are no instructions for this game, intentionally.<br>Click the mouse to discover the controls, rules, and objective.';
+        const BLURB = 'There are no instructions for this game, intentionally.<br>Use the left, right, and down arrow keys to discover the controls, rules, and objective.';
 
         const GRID_SIZE = 5;
         // Coordinates are 1-based: columns and rows run 1..GRID_SIZE, (1,1) is the
@@ -369,19 +374,30 @@
         // GRID_SIZE+1 wraps to 1 and 0 wraps to GRID_SIZE.
         const wrap = (v) => ((v - 1) % GRID_SIZE + GRID_SIZE) % GRID_SIZE + 1;
 
+        // Which piece each arrow key drives, and the reverse lookup.
+        const PIECE_FOR_KEY = { ArrowLeft: 'ego1', ArrowRight: 'ego2', ArrowDown: 'ego3' };
+        const KEY_FOR_PIECE = { ego1: 'ArrowLeft', ego2: 'ArrowRight', ego3: 'ArrowDown' };
+
         // Game state
         let levels = [];
         let currentLevelIndex = 0;
         let isTransitioning = false; // Prevent overlapping level transitions
         let gameState = {
-            egoPos: { x: 1, y: 1 },
-            egoStart: { x: 1, y: 1 },
-            collectionPos: { x: 1, y: 1 },
-            movementCycle: [],
-            cycleStep: 0,      // index into movementCycle for the NEXT environment click
-            clickCount: 0,     // environment clicks made this level
+            ego1Pos: { x: 1, y: 1 },
+            ego1Start: { x: 1, y: 1 },
+            ego2Pos: { x: 1, y: 1 },
+            ego2Start: { x: 1, y: 1 },
+            ego3Pos: null,            // null when the level has no ego 3
+            ego3Start: null,
+            ego1Cycle: [],
+            ego2Cycle: [],
+            ego3Cycle: [],
+            ego1Step: 0,              // index into ego1Cycle for the NEXT Left press
+            ego2Step: 0,              // index into ego2Cycle for the NEXT Right press
+            ego3Step: 0,              // index into ego3Cycle for the NEXT Down press
+            pressCount: 0,            // arrow-key presses that moved a piece this level
             isPlayable: true,
-            colors: { ego: '#FFFFFF', collection: '#FFFFFF' }
+            colors: { ego1: '#FFFFFF', ego2: '#FFFFFF', ego3: '#FFFFFF' }
         };
 
         // Data collection
@@ -389,8 +405,9 @@
             game: "Game D",
             legend: {
                 "E": "Empty - background cell",
-                "P": "Ego cell - the player's movable piece",
-                "C": "Collection cell - hidden target the ego cell must be clicked on top of"
+                "1": "Ego 1 - the player's movable piece, moved by the Left arrow key",
+                "2": "Ego 2 - moved by the Right arrow key; the level is won when ego 1 lands on it",
+                "3": "Ego 3 - moved by the Down arrow key (only present in levels that define it)"
             },
             coordinates: {
                 "grid": "5x5 grid",
@@ -400,12 +417,13 @@
                 "wrap": "toroidal - the grid wraps on both axes (left<->right and top<->bottom); column 6 wraps to 1, column 0 wraps to 5, same for rows",
                 "dx": "-1 = left, +1 = right, 0 = no horizontal movement",
                 "dy": "-1 = up, +1 = down, 0 = no vertical movement",
-                "movement": "each click on a non-ego cell consumes the next [dx,dy] entry of the level's movement cycle and applies it as a DELTA to the ego cell's CURRENT position (not its start position): newPos = currentPos + [dx,dy], then wrapped toroidally. The cycle loops after its last entry."
+                "movement": "each Left arrow press consumes the next [dx,dy] entry of the level's ego-1 cycle; Right does the same for the ego-2 cycle; Down does the same for the ego-3 cycle (when the level has an ego 3). The entry is applied as a DELTA to that piece's CURRENT position (not its start position): newPos = currentPos + [dx,dy], then wrapped toroidally. Each cycle loops after its last entry."
             },
-            // Per-level movement cycles. Each entry of a `cycle` is a [dx, dy]
-            // delta applied to the ego cell's CURRENT position on one
-            // environment-click (not an absolute cell, and not relative to the
-            // start position). Populated at startup from the level definitions.
+            // Per-level movement cycles, one list per piece. Each entry of a
+            // `cycle` is a [dx, dy] delta applied to that piece's CURRENT
+            // position on one key press (not an absolute cell, and not relative
+            // to the start position). Populated at startup from the level
+            // definitions.
             movementCycles: [],
             sessionStart: new Date().toISOString(),
             events: []
@@ -413,96 +431,88 @@
 
         // ---------------------------------------------------------------
         // Level definitions - each level is fully self-contained here
+        //
+        // Schema:
+        //   ego1Start / ego2Start : { x, y } start cells (required)
+        //   ego3Start             : { x, y } start cell, only if the level uses ego 3
+        //   ego1Cycle / ego2Cycle : [ [dx,dy], ... ] delta cycles (required; [] = that key does nothing)
+        //   ego3Cycle             : [ [dx,dy], ... ] only if the level uses ego 3
+        //   colors                : { ego1, ego2, ego3? }
+        //
+        // NOTE: the mechanic was just rewritten from mouse-click to keyboard.
+        // The cycles below are placeholders carried over from the old design
+        // and will be respecified level by level.
         // ---------------------------------------------------------------
 
         function level1() {
             // Grid reference (x,y), x = col 1-5, y = row 1-5. Center = (3,3).
             //
-            // Ego cell (pink) and collection cell (teal) both start in the
-            // center, so the teal cell is hidden at the start.
+            // ego 1 (pink) is driven by the Left arrow key; ego 2 (teal) by the
+            // Right arrow key. Both start in the center, so ego 2 is hidden
+            // under ego 1 at the start. No ego 3 in this level, so the Down
+            // arrow does nothing here.
             //
-            // Movement cycle (counter-clockwise diamond, period 4):
-            //   click 1: up + right   (+1, -1)   -> (4,2)
-            //   click 2: up + left    (-1, -1)   -> (3,1)
-            //   click 3: left + down  (-1, +1)   -> (2,2)
-            //   click 4: right + down (+1, +1)   -> (3,3)  back to start
-            // The ego cell returns to the center every 4 environment clicks.
-            //
-            // Win: click the ego cell while it is on the center cell (on top of
-            // the collection cell) - possible immediately, or after any whole
-            // number of 4-click cycles.
+            // Cycles pending respecification under the new keyboard mechanic.
             return {
                 id: 1,
                 name: "Level 1",
                 isPlayable: true,
-                egoStart: { x: 3, y: 3 },
-                collectionStart: { x: 3, y: 3 },
-                movementCycle: [
+                ego1Start: { x: 3, y: 3 },
+                ego2Start: { x: 3, y: 3 },
+                ego1Cycle: [
                     [1, -1],
                     [-1, -1],
                     [-1, 1],
                     [1, 1]
                 ],
+                ego2Cycle: [],
                 colors: {
-                    ego: '#E491A6',        // pink
-                    collection: '#44AA99'  // teal
+                    ego1: '#E491A6',  // pink
+                    ego2: '#44AA99'   // teal
                 }
             };
         }
 
         function level2() {
-            // Same grid and mechanics as Level 1, with changes:
-            //   - ego cell is yellow, collection cell is violet
-            //   - collection cell starts in the center row, right-most column: (5,3)
-            //   - ego cell still starts in the center: (3,3)
+            // ego 1 (yellow) is driven by the Left arrow key and starts in the
+            // center (3,3); ego 2 (violet) is driven by the Right arrow key and
+            // starts in the center row, right-most column (5,3). No ego 3.
             //
-            // Movement cycle (period 4):
-            //   click 1: up + right   (+1, -1)
-            //   click 2: up + left    (-1, -1)
-            //   click 3: left + down  (-1, +1)
-            //   click 4: down only    ( 0, +1)
-            //   click 5: up + right ... (cycle repeats)
-            //
-            // Net drift per full 4-click cycle = (-1, 0): the ego cell comes
-            // back to the middle row one column to the LEFT of where it was.
-            // Because the grid wraps on both axes, continuing to click walks
-            // the ego cell leftward off the grid and back on from the right.
-            //
-            // Trace from (3,3): after 4 clicks (2,3); after 8 clicks (1,3);
-            // after 12 clicks (5,3) - on top of the collection cell. Then a
-            // click on the ego cell wins.
+            // Cycles pending respecification under the new keyboard mechanic.
             return {
                 id: 2,
                 name: "Level 2",
                 isPlayable: true,
-                egoStart: { x: 3, y: 3 },
-                collectionStart: { x: 5, y: 3 },
-                movementCycle: [
+                ego1Start: { x: 3, y: 3 },
+                ego2Start: { x: 5, y: 3 },
+                ego1Cycle: [
                     [1, -1],
                     [-1, -1],
                     [-1, 1],
                     [0, 1]
                 ],
+                ego2Cycle: [],
                 colors: {
-                    ego: '#DDCC77',        // yellow
-                    collection: '#332288'  // violet
+                    ego1: '#DDCC77',  // yellow
+                    ego2: '#332288'   // violet
                 }
             };
         }
 
-        // Empty placeholder level - blank white 5x5 grid, no ego / collection
-        // cell, clicks do nothing. To be designed later.
+        // Empty placeholder level - blank white 5x5 grid, no pieces, arrow keys
+        // do nothing. To be designed later.
         function blankLevel(id) {
             return {
                 id: id,
                 name: "Level " + id,
                 isPlayable: false,
-                egoStart: { x: 3, y: 3 },
-                collectionStart: { x: 3, y: 3 },
-                movementCycle: [],
+                ego1Start: { x: 3, y: 3 },
+                ego2Start: { x: 3, y: 3 },
+                ego1Cycle: [],
+                ego2Cycle: [],
                 colors: {
-                    ego: '#FFFFFF',
-                    collection: '#FFFFFF'
+                    ego1: '#FFFFFF',
+                    ego2: '#FFFFFF'
                 }
             };
         }
@@ -510,43 +520,27 @@
         function level3() { return blankLevel(3); }
 
         function level4() {
-            // Ego cell is blue, collection cell is orange.
-            //   - ego cell starts at (2,2)
-            //   - collection cell starts at (5,3): right-most column, middle row
+            // ego 1 (blue) is driven by the Left arrow key and starts at (2,2);
+            // ego 2 (orange) is driven by the Right arrow key and starts at
+            // (5,3): right-most column, middle row. No ego 3.
             //
-            // Movement cycle (period 4):
-            //   click 1: up 1 + right 1   (+1, -1)
-            //   click 2: up 1 + left 1    (-1, -1)
-            //   click 3: down 1 + left 1  (-1, +1)
-            //   click 4: down 2 + right 2 (+2, +2)
-            //   click 5: up 1 + right 1 ... (cycle repeats)
-            //
-            // Net drift per full 4-click cycle = (+1, +1). The ego cell runs a
-            // fixed 20-click loop through 10 cells (then repeats):
-            //   start (2,2)
-            //   1 (3,1)  2 (2,5)  3 (1,1)  4 (3,3)
-            //   5 (4,2)  6 (3,1)  7 (2,2)  8 (4,4)
-            //   9 (5,3) <- on the collection cell
-            //   10 (4,2) 11 (3,3) 12 (5,5) 13 (1,4) 14 (5,3) 15 (4,4)
-            //   16 (1,1) 17 (2,5) 18 (1,4) 19 (5,5) 20 (2,2)
-            //
-            // Win: reach the collection cell at (5,3) - first after 9 environment
-            // clicks (again at click 14) - then click the ego cell.
+            // Cycles pending respecification under the new keyboard mechanic.
             return {
                 id: 4,
                 name: "Level 4",
                 isPlayable: true,
-                egoStart: { x: 2, y: 2 },
-                collectionStart: { x: 5, y: 3 },
-                movementCycle: [
+                ego1Start: { x: 2, y: 2 },
+                ego2Start: { x: 5, y: 3 },
+                ego1Cycle: [
                     [1, -1],
                     [-1, -1],
                     [-1, 1],
                     [2, 2]
                 ],
+                ego2Cycle: [],
                 colors: {
-                    ego: '#ADD8E6',        // blue
-                    collection: '#FF5F15'  // orange
+                    ego1: '#ADD8E6',  // blue
+                    ego2: '#FF5F15'   // orange
                 }
             };
         }
@@ -561,13 +555,13 @@
         function initGrid() {
             const gridElement = document.getElementById('grid');
             gridElement.innerHTML = '';
-            // 1-based coordinates: cells run (1,1)..(GRID_SIZE,GRID_SIZE)
+            // 1-based coordinates: cells run (1,1)..(GRID_SIZE,GRID_SIZE).
+            // Cells are display-only now - all interaction is via the keyboard.
             for (let y = 1; y <= GRID_SIZE; y++) {
                 for (let x = 1; x <= GRID_SIZE; x++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
                     cell.id = `cell-${x}-${y}`;
-                    cell.addEventListener('click', () => handleCellClick(x, y));
                     gridElement.appendChild(cell);
                 }
             }
@@ -583,12 +577,19 @@
 
             const level = levels[levelIndex];
 
-            gameState.egoPos = { ...level.egoStart };
-            gameState.egoStart = { ...level.egoStart };
-            gameState.collectionPos = { ...level.collectionStart };
-            gameState.movementCycle = level.movementCycle.map(step => [...step]);
-            gameState.cycleStep = 0;
-            gameState.clickCount = 0;
+            gameState.ego1Pos = { ...level.ego1Start };
+            gameState.ego1Start = { ...level.ego1Start };
+            gameState.ego2Pos = { ...level.ego2Start };
+            gameState.ego2Start = { ...level.ego2Start };
+            gameState.ego3Pos = level.ego3Start ? { ...level.ego3Start } : null;
+            gameState.ego3Start = level.ego3Start ? { ...level.ego3Start } : null;
+            gameState.ego1Cycle = level.ego1Cycle.map(step => [...step]);
+            gameState.ego2Cycle = level.ego2Cycle.map(step => [...step]);
+            gameState.ego3Cycle = (level.ego3Cycle || []).map(step => [...step]);
+            gameState.ego1Step = 0;
+            gameState.ego2Step = 0;
+            gameState.ego3Step = 0;
+            gameState.pressCount = 0;
             gameState.isPlayable = level.isPlayable;
             gameState.colors = { ...level.colors };
 
@@ -615,50 +616,76 @@
 
             if (!gameState.isPlayable) return;
 
-            // Draw the collection cell first...
-            const c = gameState.collectionPos;
-            document.getElementById(`cell-${c.x}-${c.y}`).style.backgroundColor = gameState.colors.collection;
+            // Draw ego 2 first, then ego 3, then ego 1 on top, so ego 1 stays
+            // visible when pieces share a square (ego 1 landing on ego 2 is the
+            // win and ends the level immediately anyway).
+            const e2 = gameState.ego2Pos;
+            document.getElementById(`cell-${e2.x}-${e2.y}`).style.backgroundColor = gameState.colors.ego2;
 
-            // ...then the ego cell on top, so the collection cell is hidden
-            // whenever the ego cell shares its square.
-            const e = gameState.egoPos;
-            document.getElementById(`cell-${e.x}-${e.y}`).style.backgroundColor = gameState.colors.ego;
+            if (gameState.ego3Pos) {
+                const e3 = gameState.ego3Pos;
+                document.getElementById(`cell-${e3.x}-${e3.y}`).style.backgroundColor = gameState.colors.ego3;
+            }
+
+            const e1 = gameState.ego1Pos;
+            document.getElementById(`cell-${e1.x}-${e1.y}`).style.backgroundColor = gameState.colors.ego1;
         }
 
         // ---------------------------------------------------------------
-        // Interaction
+        // Interaction (keyboard only)
         // ---------------------------------------------------------------
 
-        function handleCellClick(x, y) {
+        document.addEventListener('keydown', (e) => {
+            const piece = PIECE_FOR_KEY[e.key];
+            if (!piece) return;
+
+            e.preventDefault();          // arrow keys otherwise scroll the page
+
+            if (e.repeat) return;        // one press = one step; ignore auto-repeat
             if (isTransitioning) return;
             if (currentLevelIndex >= levels.length) return;
             if (!gameState.isPlayable) return;
 
-            const onEgo = (x === gameState.egoPos.x && y === gameState.egoPos.y);
+            movePiece(piece);
+        });
 
-            if (onEgo) {
-                const egoOnCollection = (gameState.egoPos.x === gameState.collectionPos.x &&
-                                         gameState.egoPos.y === gameState.collectionPos.y);
-                if (egoOnCollection) {
-                    logEvent({ x, y }, 'ego_on_collection', 'win');
-                    handleWin();
-                } else {
-                    logEvent({ x, y }, 'ego', 'reset_level');
-                    loadLevel(currentLevelIndex);
-                }
-                return;
-            }
+        // Advance one piece's movement cycle by a single step: apply the next
+        // [dx,dy] delta to that piece's current position (toroidal wrap), then
+        // consume the entry. If moving ego 1 or ego 2 puts the two on the same
+        // cell, the level is won.
+        function movePiece(piece) {
+            const cycle = gameState[piece + 'Cycle'];
+            const pos = gameState[piece + 'Pos'];
+            // Piece absent this level, or this key has no cycle -> no-op.
+            if (!pos || !cycle || cycle.length === 0) return;
 
-            // Environment click - advance the movement cycle by one step
-            logEvent({ x, y }, 'environment', 'advance_cycle');
+            const stepKey = piece + 'Step';
+            const [dx, dy] = cycle[gameState[stepKey]];
+            const nx = wrap(pos.x + dx);
+            const ny = wrap(pos.y + dy);
 
-            const [dx, dy] = gameState.movementCycle[gameState.cycleStep];
-            gameState.egoPos.x = wrap(gameState.egoPos.x + dx);
-            gameState.egoPos.y = wrap(gameState.egoPos.y + dy);
-            gameState.cycleStep = (gameState.cycleStep + 1) % gameState.movementCycle.length;
-            gameState.clickCount++;
+            // Does this move put ego 1 and ego 2 on the same cell? Only a move
+            // of ego 1 or ego 2 can trigger the win.
+            const ego1After = (piece === 'ego1') ? { x: nx, y: ny } : gameState.ego1Pos;
+            const ego2After = (piece === 'ego2') ? { x: nx, y: ny } : gameState.ego2Pos;
+            const isWin = (piece === 'ego1' || piece === 'ego2') &&
+                          ego1After.x === ego2After.x && ego1After.y === ego2After.y;
+
+            logEvent(isWin ? 'win' : 'advance_cycle', {
+                key: KEY_FOR_PIECE[piece],
+                piece: piece,
+                cycleStepBefore: gameState[stepKey],
+                deltaApplied: [dx, dy]
+            });
+
+            pos.x = nx;
+            pos.y = ny;
+            gameState[stepKey] = (gameState[stepKey] + 1) % cycle.length;
+            gameState.pressCount++;
 
             renderGrid();
+
+            if (isWin) handleWin();
         }
 
         function handleWin() {
@@ -745,32 +772,40 @@
 
         function generateGameStateMatrix() {
             // matrix is a plain 0-based array; coordinates are 1-based, so index with -1.
+            // '1' = ego 1, '2' = ego 2, '3' = ego 3. Ego 1 is written last so it
+            // wins the cell when pieces overlap (matches the render order).
             const matrix = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('E'));
             if (gameState.isPlayable) {
-                matrix[gameState.collectionPos.y - 1][gameState.collectionPos.x - 1] = 'C';
-                matrix[gameState.egoPos.y - 1][gameState.egoPos.x - 1] = 'P';
+                matrix[gameState.ego2Pos.y - 1][gameState.ego2Pos.x - 1] = '2';
+                if (gameState.ego3Pos) {
+                    matrix[gameState.ego3Pos.y - 1][gameState.ego3Pos.x - 1] = '3';
+                }
+                matrix[gameState.ego1Pos.y - 1][gameState.ego1Pos.x - 1] = '1';
             }
             return matrix;
         }
 
-        function logEvent(clickedCell, clickTarget, action) {
-            // For an environment click, deltaApplied is the [dx, dy] entry that
-            // this click applies to the ego cell's CURRENT position (egoPosBefore).
-            // egoPosAfter = wrap(egoPosBefore + deltaApplied). Null for ego clicks.
-            const deltaApplied = (clickTarget === 'environment' && gameState.movementCycle.length)
-                ? [...gameState.movementCycle[gameState.cycleStep]]
-                : null;
+        function logEvent(outcome, detail) {
+            // outcome: 'advance_cycle' | 'win' | 'skip_level'
+            // detail (optional, for key-press events):
+            //   { key, piece, cycleStepBefore, deltaApplied }
+            // deltaApplied is the [dx, dy] added to that piece's CURRENT position
+            // (the matching egoNPosBefore); egoNPosAfter = wrap(before + delta).
+            // Every *PosBefore field and gameStateBefore is a snapshot from
+            // BEFORE this event is applied.
+            detail = detail || {};
             sessionData.events.push({
                 timestamp: new Date().toISOString(),
                 level: currentLevelIndex + 1,
-                clickedCell: { ...clickedCell },
-                clickTarget: clickTarget,       // 'environment' | 'ego' | 'ego_on_collection'
-                action: action,                 // 'advance_cycle' | 'reset_level' | 'win'
-                cycleStepBefore: gameState.cycleStep,
-                deltaApplied: deltaApplied,     // [dx, dy] delta added to egoPosBefore (current position)
-                clickCountBefore: gameState.clickCount,
-                egoPosBefore: { ...gameState.egoPos },
-                collectionPos: { ...gameState.collectionPos },
+                key: detail.key || null,               // 'ArrowLeft' | 'ArrowRight' | 'ArrowDown' | null
+                piece: detail.piece || null,           // 'ego1' | 'ego2' | 'ego3' | null
+                outcome: outcome,
+                cycleStepBefore: (detail.cycleStepBefore != null) ? detail.cycleStepBefore : null,
+                deltaApplied: detail.deltaApplied ? [...detail.deltaApplied] : null,
+                pressCountBefore: gameState.pressCount,
+                ego1PosBefore: { ...gameState.ego1Pos },
+                ego2PosBefore: { ...gameState.ego2Pos },
+                ego3PosBefore: gameState.ego3Pos ? { ...gameState.ego3Pos } : null,
                 gameStateBefore: generateGameStateMatrix()
             });
         }
@@ -794,7 +829,7 @@
             if (isTransitioning) return;
             if (currentLevelIndex >= levels.length) return;
 
-            logEvent({ x: null, y: null }, 'skip_button', 'skip_level');
+            logEvent('skip_level');
             isTransitioning = true;
 
             const gridElement = document.getElementById('grid');
@@ -833,14 +868,14 @@
 
             // Post-process to compress gameStateBefore arrays into compact rows
             dataStr = dataStr.replace(
-                /"gameStateBefore":\s*\[\s*\[\s*("[A-Z]",?\s*)+\]\s*(,\s*\[\s*("[A-Z]",?\s*)+\]\s*)*\]/g,
+                /"gameStateBefore":\s*\[\s*\[\s*("[A-Z0-9]",?\s*)+\]\s*(,\s*\[\s*("[A-Z0-9]",?\s*)+\]\s*)*\]/g,
                 (match) => {
-                    const letters = match.match(/"[A-Z]"/g);
-                    if (!letters) return match;
+                    const cells = match.match(/"[A-Z0-9]"/g);
+                    if (!cells) return match;
 
                     const rows = [];
-                    for (let i = 0; i < letters.length; i += GRID_SIZE) {
-                        rows.push('[' + letters.slice(i, i + GRID_SIZE).join(',') + ']');
+                    for (let i = 0; i < cells.length; i += GRID_SIZE) {
+                        rows.push('[' + cells.slice(i, i + GRID_SIZE).join(',') + ']');
                     }
 
                     return '"gameStateBefore": [\n        ' + rows.join(',\n        ') + '\n      ]';
@@ -944,15 +979,18 @@
             level6()
         ];
 
-        // Record each level's movement cycle in the session data. Every entry
-        // of `cycle` is a [dx, dy] delta applied to the ego cell's CURRENT
-        // position on one environment-click (not an absolute cell, not relative
-        // to the start position); the cycle loops after its last entry.
+        // Record each level's movement cycles in the session data - one list
+        // per piece. Every entry of a `cycle` is a [dx, dy] delta applied to
+        // that piece's CURRENT position on one key press (not an absolute cell,
+        // not relative to the start position); each cycle loops after its last
+        // entry. ego3 is null for levels with no ego 3.
         sessionData.movementCycles = levels.map(level => ({
             level: level.id,
             playable: level.isPlayable,
-            deltasRelativeTo: "current position of the ego cell at click time",
-            cycle: level.movementCycle.map(step => [...step])
+            deltasRelativeTo: "current position of the moved piece at press time",
+            ego1: level.ego1Cycle.map(step => [...step]),
+            ego2: level.ego2Cycle.map(step => [...step]),
+            ego3: level.ego3Cycle ? level.ego3Cycle.map(step => [...step]) : null
         }));
 
         initGrid();
@@ -965,16 +1003,23 @@
             getGameState: function() {
                 return {
                     level: currentLevelIndex + 1,
-                    egoPos: { ...gameState.egoPos },
-                    collectionPos: { ...gameState.collectionPos },
-                    cycleStep: gameState.cycleStep,
-                    // Full cycle for this level; each [dx,dy] is a delta applied
-                    // to the ego cell's CURRENT position on one environment-click.
-                    movementCycle: gameState.movementCycle.map(step => [...step]),
-                    nextDelta: gameState.movementCycle.length
-                        ? [...gameState.movementCycle[gameState.cycleStep]]
-                        : null,
-                    clickCount: gameState.clickCount,
+                    ego1Pos: { ...gameState.ego1Pos },
+                    ego2Pos: { ...gameState.ego2Pos },
+                    ego3Pos: gameState.ego3Pos ? { ...gameState.ego3Pos } : null,
+                    ego1Step: gameState.ego1Step,
+                    ego2Step: gameState.ego2Step,
+                    ego3Step: gameState.ego3Step,
+                    // Full cycle for each piece this level; every [dx,dy] is a
+                    // delta applied to that piece's CURRENT position on one key press.
+                    ego1Cycle: gameState.ego1Cycle.map(step => [...step]),
+                    ego2Cycle: gameState.ego2Cycle.map(step => [...step]),
+                    ego3Cycle: gameState.ego3Cycle.map(step => [...step]),
+                    nextDelta: {
+                        ego1: gameState.ego1Cycle.length ? [...gameState.ego1Cycle[gameState.ego1Step]] : null,
+                        ego2: gameState.ego2Cycle.length ? [...gameState.ego2Cycle[gameState.ego2Step]] : null,
+                        ego3: gameState.ego3Cycle.length ? [...gameState.ego3Cycle[gameState.ego3Step]] : null
+                    },
+                    pressCount: gameState.pressCount,
                     isPlayable: gameState.isPlayable,
                     gameStateMatrix: generateGameStateMatrix()
                 };
