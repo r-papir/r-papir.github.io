@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puzzle Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Trebuchet MS', monospace;
+            background-color: #ffffff;
+            color: #000000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        #game-container {
+            text-align: center;
+            position: relative;
+        }
+
+        #ripple-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            border: 7px solid #32CD32;
+            width: 50px;
+            height: 50px;
+            margin-left: -25px;
+            margin-top: -25px;
+            opacity: 0;
+            transform: scale(0);
+            pointer-events: none;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            10% {
+                transform: scale(0.5);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(8);
+                opacity: 0;
+            }
+        }
+
+        #instructions {
+            margin-bottom: 20px;
+            font-size: 18px;
+            padding: 15px;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            border-radius: 8px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.5;
+            text-align: center;
+            opacity: 1;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #instructions.fade-out {
+            opacity: 0;
+        }
+
+        #grid {
+            display: inline-grid;
+            grid-template-columns: repeat(8, 90px);
+            grid-template-rows: repeat(8, 90px);
+            gap: 2px;
+            background-color: #e0e0e0;
+            padding: 2px;
+            border: 3px solid #e0e0e0;
+            opacity: 1;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #grid.fade-out {
+            opacity: 0;
+        }
+
+        #button-container {
+            display: none;
+        }
+
+        #restart-button, #download-button, #skip-button {
+            position: fixed;
+            top: 20px;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-family: 'Trebuchet MS', monospace;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            border: 3px solid #1a1a1a;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        #restart-button {
+            left: 20px;
+            display: none;
+        }
+
+        /* Sits in the same top-left slot as #restart-button; the two are never
+           shown at the same time (skip while playing, restart once complete). */
+        #skip-button {
+            left: 20px;
+            display: block;
+        }
+
+        #download-button {
+            right: 20px;
+            display: block;
+            font-size: 16px;
+        }
+
+        .audio-recorder-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            text-align: right;
+        }
+
+        #download-button {
+            top: 100px;
+        }
+
+        #restart-button:hover, #download-button:hover, #skip-button:hover {
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+
+        .cell {
+            width: 90px;
+            height: 90px;
+            border: 1px solid #e0e0e0;
+            box-sizing: border-box;
+            background-color: #FFFFFF;
+        }
+
+        /* Hide WebGazer camera elements during gameplay */
+        #webgazerVideoFeed,
+        #webgazerVideoCanvas,
+        #webgazerFaceFeedbackBox,
+        #webgazerGazeDot {
+            display: none !important;
+        }
+
+        .completion-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            cursor: pointer;
+        }
+        .completion-overlay.visible { opacity: 1; }
+        .completion-card {
+            background: white;
+            border-radius: 16px;
+            padding: 48px 56px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            transform: scale(0.8);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            font-family: "Trebuchet MS", sans-serif;
+        }
+        .completion-overlay.visible .completion-card { transform: scale(1); }
+        .completion-card h2 {
+            margin: 0 0 12px;
+            font-size: 28px;
+            color: #333;
+        }
+        .completion-card p {
+            margin: 0;
+            font-size: 16px;
+            color: #888;
+        }
+        .confetti-piece {
+            position: fixed;
+            top: -10px;
+            width: 10px;
+            height: 14px;
+            z-index: 10000;
+            opacity: 1;
+            animation: confetti-fall linear forwards;
+        }
+        @keyframes confetti-fall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            85% { opacity: 1; }
+            100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <script>
+    // ---- Puzzle 5 authorization gate ----
+    // Must be the first script on the page. If the visitor has not entered the
+    // authorization code this session, cover the page with a full-screen code
+    // prompt and set window.__puzzle5Unauthorized so the calibration check and
+    // the game "Start" block below do not run. On the correct code we store a
+    // session flag and reload for a clean start.
+    //
+    // This deliberately avoids document.open()/document.write(): those are a
+    // no-op when called from an inline script while the parser is still active
+    // (HTML spec: script nesting level > 0), which left the old gate injecting
+    // broken markup into a half-parsed page. An overlay appended to the DOM
+    // works regardless of parser state.
+    (function () {
+        var AUTH_CODE = 'ABCD';
+
+        var authorized = false;
+        try { authorized = sessionStorage.getItem('puzzle5Authorized') === 'true'; } catch (e) {}
+        if (authorized) return;
+
+        window.__puzzle5Unauthorized = true;
+
+        function buildGate() {
+            if (document.getElementById('p5-auth-overlay')) return;
+
+            var overlay = document.createElement('div');
+            overlay.id = 'p5-auth-overlay';
+            overlay.setAttribute('style', [
+                'position:fixed', 'inset:0', 'z-index:2147483647',
+                'display:flex', 'align-items:center', 'justify-content:center',
+                'background:#ffffff',
+                "font-family:'Trebuchet MS',Verdana,sans-serif"
+            ].join(';'));
+            overlay.innerHTML =
+                '<div style="width:360px;max-width:88vw;text-align:center;padding:24px;">' +
+                '<h1 style="font-weight:300;color:#333;font-size:1.9rem;margin:0 0 10px;">Puzzle 5</h1>' +
+                '<p style="color:#666;font-size:0.95rem;margin:0 0 22px;">Enter the authorization code to continue.</p>' +
+                '<input id="p5-auth-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" ' +
+                'aria-label="Authorization code" ' +
+                'style="width:100%;box-sizing:border-box;padding:12px 14px;font-size:18px;font-family:inherit;' +
+                'text-align:center;letter-spacing:6px;text-transform:uppercase;border:2px solid #111;border-radius:8px;" />' +
+                '<div id="p5-auth-error" style="color:#c62828;font-size:14px;min-height:18px;margin:9px 0 0;"></div>' +
+                '<button id="p5-auth-btn" type="button" ' +
+                'style="margin-top:12px;width:100%;padding:12px;font-size:16px;font-family:inherit;color:#111;' +
+                'background:#fee6e3;border:2px solid #111;border-radius:8px;box-shadow:4px 4px 0 #111;cursor:pointer;">Continue</button>' +
+                '</div>';
+
+            (document.body || document.documentElement).appendChild(overlay);
+
+            var input = document.getElementById('p5-auth-input');
+            var errEl = document.getElementById('p5-auth-error');
+            var btn = document.getElementById('p5-auth-btn');
+
+            function submit() {
+                if (input.value.trim().toUpperCase() === AUTH_CODE) {
+                    try { sessionStorage.setItem('puzzle5Authorized', 'true'); } catch (e) {}
+                    window.location.reload();
+                } else {
+                    errEl.textContent = 'Incorrect code. Please try again.';
+                    input.value = '';
+                    input.focus();
+                }
+            }
+
+            btn.addEventListener('click', submit);
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); submit(); }
+            });
+            input.focus();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', buildGate);
+        } else {
+            buildGate();
+        }
+    })();
+    </script>
+
+    <script>
+    // Verify calibration before allowing game play
+    (function() {
+        // Authorization gate runs first; don't calibrate an unauthorized visitor.
+        try { if (sessionStorage.getItem('puzzle5Authorized') !== 'true') return; } catch (e) { return; }
+        var calibrated = sessionStorage.getItem('webgazerCalibrationComplete') === 'true';
+        var skipped = sessionStorage.getItem('eyeTrackingSkipped') === 'true';
+        if (!calibrated && !skipped) {
+            var returnUrl = encodeURIComponent(window.location.pathname);
+            window.location.href = 'calibration.html?return=' + returnUrl;
+        }
+    })();
+    </script>
+
+    <div id="instructions">
+        There are no instructions for this game, intentionally.<br>
+        Explore to discover the controls, rules, and objective.
+    </div>
+    <div id="game-container">
+        <div id="ripple-container"></div>
+        <div id="grid"></div>
+    </div>
+    <button id="restart-button">Start Over</button>
+    <button id="skip-button">Skip Level</button>
+    <button id="download-button">Download Data</button>
+
+    <script src="webgazer.js"></script>
+    <script src="audio-recorder.js"></script>
+    <script src="s3-uploader.js"></script>
+    <script>S3Uploader.setApiUrl('https://n00wf4nmw6.execute-api.us-east-1.amazonaws.com/prod');</script>
+    <script>
+        // Get or generate shared 4-digit session code (persists across all games in same session)
+        let sessionCode = sessionStorage.getItem('gameSessionCode');
+        if (!sessionCode) {
+            sessionCode = String(Math.floor(1000 + Math.random() * 9000));
+            sessionStorage.setItem('gameSessionCode', sessionCode);
+        }
+
+        // ===========================
+        // PUZZLE 5 - 8x8 grid
+        // ===========================
+        // Scaffold only. The grid, page chrome (instructions, Skip/Restart/
+        // Download buttons), calibration + authorization gates, ripple/confetti
+        // completion flow, data logging and S3 upload all match the other
+        // puzzles. The game MECHANIC is not designed yet: there is one blank,
+        // non-playable level, no input is bound, and the only way forward is the
+        // Skip Level button. Fill in levels[] and the interaction handlers when
+        // the mechanic is specified.
+        // ===========================
+
+        const BLURB = 'There are no instructions for this game, intentionally.<br>Explore to discover the controls, rules, and objective.';
+
+        const GRID_SIZE = 8;
+        // Coordinates are 1-based: columns and rows run 1..GRID_SIZE, (1,1) is the
+        // top-left cell.
+
+        // Game state
+        let levels = [];
+        let currentLevelIndex = 0;
+        let isTransitioning = false; // Prevent overlapping level transitions
+        let gameState = {
+            isPlayable: false,
+            colors: {}
+        };
+
+        // Data collection
+        let sessionData = {
+            game: "Game 5",
+            legend: {
+                "E": "Empty - background cell"
+            },
+            coordinates: {
+                "grid": "8x8 grid",
+                "origin": "(1,1) is the top-left corner (1-based)",
+                "x": "column, increases left to right (1-8)",
+                "y": "row, increases top to bottom (1-8)"
+            },
+            sessionStart: new Date().toISOString(),
+            events: []
+        };
+
+        // ---------------------------------------------------------------
+        // Level definitions
+        //
+        // Placeholder until the mechanic is designed. blankLevel() renders an
+        // empty white 8x8 grid with no pieces and no interaction; it is advanced
+        // with the Skip Level button.
+        // ---------------------------------------------------------------
+
+        function blankLevel(id) {
+            return {
+                id: id,
+                name: "Level " + id,
+                isPlayable: false,
+                colors: {}
+            };
+        }
+
+        // ---------------------------------------------------------------
+        // Grid / rendering
+        // ---------------------------------------------------------------
+
+        function initGrid() {
+            const gridElement = document.getElementById('grid');
+            gridElement.innerHTML = '';
+            // 1-based coordinates: cells run (1,1)..(GRID_SIZE,GRID_SIZE).
+            for (let y = 1; y <= GRID_SIZE; y++) {
+                for (let x = 1; x <= GRID_SIZE; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.id = `cell-${x}-${y}`;
+                    gridElement.appendChild(cell);
+                }
+            }
+        }
+
+        function loadLevel(levelIndex) {
+            if (levelIndex >= levels.length) {
+                return;
+            }
+
+            // Clear any lingering ripples from the previous level
+            document.getElementById('ripple-container').innerHTML = '';
+
+            const level = levels[levelIndex];
+
+            gameState.isPlayable = level.isPlayable;
+            gameState.colors = { ...level.colors };
+
+            const instructionsElement = document.getElementById('instructions');
+            instructionsElement.innerHTML = BLURB;
+            instructionsElement.style.display = 'block';
+
+            renderGrid();
+
+            const gridElement = document.getElementById('grid');
+            gridElement.classList.remove('fade-out');
+            instructionsElement.classList.remove('fade-out');
+        }
+
+        function renderGrid() {
+            // Reset every cell to empty background
+            for (let y = 1; y <= GRID_SIZE; y++) {
+                for (let x = 1; x <= GRID_SIZE; x++) {
+                    const cell = document.getElementById(`cell-${x}-${y}`);
+                    cell.style.backgroundColor = '#FFFFFF';
+                    cell.style.borderColor = '#e0e0e0';
+                }
+            }
+
+            if (!gameState.isPlayable) return;
+
+            // Piece rendering goes here once the mechanic is defined.
+        }
+
+        // ---------------------------------------------------------------
+        // Interaction
+        // ---------------------------------------------------------------
+        // No input is bound yet - add the keydown / click handlers here when the
+        // mechanic is specified, and call handleWin() when a level is solved.
+
+        function handleWin() {
+            isTransitioning = true;
+
+            createRipple();
+
+            const gridElement = document.getElementById('grid');
+            const instructionsElement = document.getElementById('instructions');
+            gridElement.classList.add('fade-out');
+            instructionsElement.classList.add('fade-out');
+
+            setTimeout(() => {
+                currentLevelIndex++;
+                isTransitioning = false;
+                if (currentLevelIndex < levels.length) {
+                    loadLevel(currentLevelIndex);
+                } else {
+                    // Game complete - show restart button and upload data
+                    gridElement.classList.remove('fade-out');
+                    instructionsElement.classList.remove('fade-out');
+                    document.getElementById('skip-button').style.display = 'none';
+                    document.getElementById('restart-button').style.display = 'block';
+                    handleGameComplete();
+                    showCompletionMessage('5');
+                }
+            }, 800);
+        }
+
+        function showCompletionMessage(puzzleLabel) {
+            const overlay = document.createElement('div');
+            overlay.className = 'completion-overlay';
+            overlay.innerHTML = '<div class="completion-card">' +
+                '<h2>Congratulations!</h2>' +
+                '<p>You completed all levels of Puzzle ' + puzzleLabel + '.</p>' +
+                '</div>';
+            document.body.appendChild(overlay);
+            requestAnimationFrame(() => overlay.classList.add('visible'));
+
+            const colors = ['#e53935','#1e88e5','#43a047','#fdd835','#8e24aa','#fb8c00','#00acc1'];
+            for (let i = 0; i < 80; i++) {
+                const piece = document.createElement('div');
+                piece.className = 'confetti-piece';
+                piece.style.left = Math.random() * 100 + 'vw';
+                piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+                piece.style.animationDuration = (2 + Math.random() * 2) + 's';
+                piece.style.animationDelay = Math.random() * 1.5 + 's';
+                piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+                piece.style.width = (6 + Math.random() * 8) + 'px';
+                piece.style.height = (8 + Math.random() * 10) + 'px';
+                document.body.appendChild(piece);
+            }
+
+            overlay.addEventListener('click', () => {
+                overlay.classList.remove('visible');
+                setTimeout(() => {
+                    overlay.remove();
+                    document.querySelectorAll('.confetti-piece').forEach(p => p.remove());
+                }, 500);
+            });
+        }
+
+        // Create ripple effect on win
+        function createRipple() {
+            const container = document.getElementById('ripple-container');
+
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const ripple = document.createElement('div');
+                    ripple.className = 'ripple';
+                    ripple.style.animation = 'ripple 1s ease-out forwards';
+                    container.appendChild(ripple);
+
+                    setTimeout(() => {
+                        ripple.remove();
+                    }, 1100);
+                }, i * 200);
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Logging
+        // ---------------------------------------------------------------
+
+        function generateGameStateMatrix() {
+            // matrix is a plain 0-based array; coordinates are 1-based, so index
+            // with -1. Only 'E' (empty) is used until the mechanic adds pieces.
+            const matrix = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('E'));
+            return matrix;
+        }
+
+        // The level number to record in the data: the current level's id. Falls
+        // back to the raw index once every level is complete (levels[
+        // currentLevelIndex] is undefined then).
+        function currentLevelId() {
+            const lvl = levels[currentLevelIndex];
+            return lvl ? lvl.id : currentLevelIndex;
+        }
+
+        function logEvent(outcome, detail) {
+            // outcome: 'skip_level' | 'win' | ... (add as the mechanic grows)
+            detail = detail || {};
+            sessionData.events.push({
+                timestamp: new Date().toISOString(),
+                level: currentLevelId(),
+                key: detail.key || null,
+                outcome: outcome,
+                gameStateBefore: generateGameStateMatrix()
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // Buttons
+        // ---------------------------------------------------------------
+
+        document.getElementById('restart-button').addEventListener('click', () => {
+            currentLevelIndex = 0;
+            isTransitioning = false;
+            document.getElementById('restart-button').style.display = 'none';
+            document.getElementById('skip-button').style.display = 'block';
+            loadLevel(currentLevelIndex);
+        });
+
+        // Skip button - advance to the next level without solving it. Mirrors
+        // the win transition (same fade + timing) but logs a 'skip_level' event
+        // instead of a 'win', and skips the ripple.
+        document.getElementById('skip-button').addEventListener('click', () => {
+            if (isTransitioning) return;
+            if (currentLevelIndex >= levels.length) return;
+
+            logEvent('skip_level');
+            isTransitioning = true;
+
+            const gridElement = document.getElementById('grid');
+            const instructionsElement = document.getElementById('instructions');
+            gridElement.classList.add('fade-out');
+            instructionsElement.classList.add('fade-out');
+
+            setTimeout(() => {
+                currentLevelIndex++;
+                isTransitioning = false;
+                if (currentLevelIndex < levels.length) {
+                    loadLevel(currentLevelIndex);
+                } else {
+                    gridElement.classList.remove('fade-out');
+                    instructionsElement.classList.remove('fade-out');
+                    document.getElementById('skip-button').style.display = 'none';
+                    document.getElementById('restart-button').style.display = 'block';
+                    handleGameComplete();
+                    showCompletionMessage('5');
+                }
+            }, 800);
+        });
+
+        document.getElementById('download-button').addEventListener('click', () => {
+            const participantId = AudioRecorder.promptParticipantId();
+            if (participantId === null) return;
+
+            sessionData.sessionEnd = new Date().toISOString();
+
+            // Include transcription data from audio recorder (with safety check)
+            sessionData.transcription = (typeof AudioRecorder !== 'undefined' && AudioRecorder.getTranscription)
+                ? AudioRecorder.getTranscription()
+                : [];
+
+            let dataStr = JSON.stringify(sessionData, null, 2);
+
+            // Post-process to compress gameStateBefore arrays into compact rows
+            dataStr = dataStr.replace(
+                /"gameStateBefore":\s*\[\s*\[\s*("[A-Z0-9]",?\s*)+\]\s*(,\s*\[\s*("[A-Z0-9]",?\s*)+\]\s*)*\]/g,
+                (match) => {
+                    const cells = match.match(/"[A-Z0-9]"/g);
+                    if (!cells) return match;
+
+                    const rows = [];
+                    for (let i = 0; i < cells.length; i += GRID_SIZE) {
+                        rows.push('[' + cells.slice(i, i + GRID_SIZE).join(',') + ']');
+                    }
+
+                    return '"gameStateBefore": [\n        ' + rows.join(',\n        ') + '\n      ]';
+                }
+            );
+
+            const dateStr = AudioRecorder.formatDateMMDDYYYY();
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${participantId}_g5_gamestate_${dateStr}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // Export eye-tracking and audio files
+            if (typeof AudioRecorder !== 'undefined' && AudioRecorder.exportRecording) {
+                AudioRecorder.exportRecording(participantId, 'g5');
+            }
+        });
+
+        // ---------------------------------------------------------------
+        // S3 upload
+        // ---------------------------------------------------------------
+
+        function showUploadStatus(message, type) {
+            let statusEl = document.getElementById('upload-status');
+            if (!statusEl) {
+                statusEl = document.createElement('div');
+                statusEl.id = 'upload-status';
+                statusEl.style.cssText = 'position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; background: #333; color: white; border-radius: 8px; z-index: 1000; font-family: sans-serif; font-size: 14px; transition: opacity 0.3s;';
+                document.body.appendChild(statusEl);
+            }
+            statusEl.textContent = message;
+            statusEl.style.background = type === 'success' ? '#2e7d32' : type === 'error' ? '#c62828' : '#1565c0';
+        }
+
+        async function handleGameComplete() {
+            sessionData.sessionEnd = new Date().toISOString();
+            sessionData.transcription = (typeof AudioRecorder !== 'undefined' && AudioRecorder.getTranscription)
+                ? AudioRecorder.getTranscription()
+                : [];
+
+            const recorderState = (typeof AudioRecorder !== 'undefined' && AudioRecorder.getState)
+                ? AudioRecorder.getState()
+                : { gazeData: [], audioChunks: [] };
+
+            const eyeTrackingData = {
+                game: sessionData.game,
+                dataType: 'eye-tracking',
+                sessionStart: sessionData.sessionStart,
+                sessionEnd: sessionData.sessionEnd,
+                gaze: recorderState.gazeData || []
+            };
+
+            if (typeof S3Uploader === 'undefined' || !S3Uploader.getApiUrl()) {
+                console.log('S3Uploader not configured. Skipping upload.');
+                return;
+            }
+
+            showUploadStatus('Uploading session data...', 'uploading');
+
+            const result = await S3Uploader.upload(
+                sessionCode,
+                sessionData.game,
+                sessionData,
+                eyeTrackingData,
+                recorderState.audioChunks,
+                (status) => showUploadStatus(status, 'uploading')
+            );
+
+            if (result.success) {
+                showUploadStatus('Data uploaded successfully!', 'success');
+                setTimeout(() => {
+                    const statusEl = document.getElementById('upload-status');
+                    if (statusEl) statusEl.style.opacity = '0';
+                }, 3000);
+            } else {
+                showUploadStatus('Upload failed. Use Download button as backup.', 'error');
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Start
+        // ---------------------------------------------------------------
+        // The authorization gate at the top of <body> sets this flag when the
+        // visitor has not entered the code yet. Don't build the grid, load a
+        // level, or start audio/S3 recording until they have. Entering the
+        // correct code stores a session flag and reloads, and this block then
+        // runs normally.
+        if (!window.__puzzle5Unauthorized) {
+
+        levels = [
+            blankLevel(1)
+        ];
+
+        initGrid();
+        loadLevel(0);
+
+        // Initialize audio recorder
+        AudioRecorder.init({
+            gamePrefix: 'puzzle-game5',
+            gameName: 'Game 5',
+            getGameState: function() {
+                return {
+                    level: currentLevelId(),
+                    isPlayable: gameState.isPlayable,
+                    gameStateMatrix: generateGameStateMatrix()
+                };
+            },
+            screenToGrid: function(screenX, screenY) {
+                const grid = document.getElementById('grid');
+                const rect = grid.getBoundingClientRect();
+
+                if (screenX < rect.left || screenX > rect.right ||
+                    screenY < rect.top || screenY > rect.bottom) {
+                    return null; // Off grid
+                }
+
+                const cellWidth = rect.width / GRID_SIZE;
+                const cellHeight = rect.height / GRID_SIZE;
+                // 1-based grid coordinates (1..GRID_SIZE)
+                const gridX = Math.floor((screenX - rect.left) / cellWidth) + 1;
+                const gridY = Math.floor((screenY - rect.top) / cellHeight) + 1;
+
+                return { x: Math.min(gridX, GRID_SIZE), y: Math.min(gridY, GRID_SIZE) };
+            },
+            insertBeforeSelector: '#download-button',
+            onRecordingStart: () => {
+                S3Uploader.startBackups(sessionCode, 'Game 5', () => AudioRecorder.getState().audioChunks);
+            },
+            onRecordingStop: () => {
+                S3Uploader.stopBackups();
+            }
+        });
+
+        } // end authorized-only Start block
+    </script>
+</body>
+</html>
