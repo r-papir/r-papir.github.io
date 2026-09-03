@@ -40,13 +40,20 @@
             letter-spacing: 0;
             white-space: nowrap;
         }
-        .links {
+        .button-grid {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            width: 340px;
+            max-width: 100%;
+            margin: 1.5rem auto 0 auto;
+        }
+        .button-grid .col {
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 1.5rem;
+            gap: 1rem;
         }
-        .links a {
+        .button-grid a {
             align-items: center;
             background-color: #fee6e3;
             border: 2px solid #111;
@@ -55,14 +62,11 @@
             color: #111;
             cursor: pointer;
             display: flex;
-            font-size: 16px;
-            height: 48px;
+            font-size: 14px;
+            height: 44px;
             justify-content: center;
-            line-height: 24px;
-            max-width: 100%;
-            width: 340px;
+            width: 157px;
             white-space: nowrap;
-            padding: 0 25px;
             text-align: center;
             text-decoration: none;
             user-select: none;
@@ -70,18 +74,21 @@
             touch-action: manipulation;
             transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
         }
-        .links a:hover {
+        .button-grid a:hover {
             box-shadow: 0 0 0 #111;
             transform: translate(6px, 6px);
             background-color: #ffd0cb;
         }
-        .links a:active {
+        .button-grid a:active {
             background-color: #ffdeda;
         }
-        @media (min-width: 768px) {
-            .links a {
-                padding: 0 40px;
-            }
+        /* Puzzle buttons are bold; Consent Form / Recalibrate are not. */
+        .button-grid a.puzzle {
+            font-weight: 700;
+        }
+        /* Puzzle E / F: styled like the rest but not yet wired to a page. */
+        .button-grid a.placeholder {
+            cursor: default;
         }
         .top-right {
             position: fixed;
@@ -112,37 +119,6 @@
             font-size: 0.82rem;
             color: #555;
         }
-        .bottom-row {
-            display: flex;
-            flex-direction: row;
-            justify-content: space-between;
-            width: 340px;
-            margin: 1.5rem auto 0 auto;
-        }
-        .bottom-row a {
-            align-items: center;
-            background-color: #fee6e3;
-            border: 2px solid #111;
-            border-radius: 8px;
-            box-shadow: 6px 6px 0 #111;
-            color: #111;
-            cursor: pointer;
-            display: flex;
-            font-size: 14px;
-            height: 44px;
-            justify-content: center;
-            text-decoration: none;
-            width: 157px;
-            transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
-        }
-        .bottom-row a:hover {
-            box-shadow: 0 0 0 #111;
-            transform: translate(6px, 6px);
-            background-color: #ffd0cb;
-        }
-        .bottom-row a:active {
-            background-color: #ffdeda;
-        }
     </style>
 </head>
 <body>
@@ -157,34 +133,21 @@
         <h1>STEP-Bench: Symbolic Temporal Exploratory Puzzle Benchmark</h1>
     </div>
     <div class="container">
-        <div class="links">
-            <a href="game.html">
-                Puzzle A
-            </a>
+        <div class="button-grid">
+            <div class="col">
+                <a class="puzzle" href="game.html">Puzzle A</a>
+                <a class="puzzle" href="game3.html">Puzzle C</a>
+                <a class="puzzle placeholder">Puzzle E</a>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSedlcz0ve-XO_Z0gXhFjRt_OI06E5O-8QeN42FtWF31Xv4jSg/viewform?usp=sharing&ouid=115986184015024353625" target="_blank">Consent Form</a>
+            </div>
 
-            <a href="game2new.html">
-                Puzzle B
-            </a>
-
-            <a href="game3.html">
-                Puzzle C
-            </a>
-
-            <a href="game4.html">
-                Puzzle D
-            </a>
+            <div class="col">
+                <a class="puzzle" href="game2new.html">Puzzle B</a>
+                <a class="puzzle" href="game4.html">Puzzle D</a>
+                <a class="puzzle placeholder">Puzzle F</a>
+                <a href="calibration.html?force=true">Recalibrate</a>
+            </div>
         </div>
-
-        <div class="bottom-row">
-            <a href="https://docs.google.com/forms/d/e/1FAIpQLSedlcz0ve-XO_Z0gXhFjRt_OI06E5O-8QeN42FtWF31Xv4jSg/viewform?usp=sharing&ouid=115986184015024353625" target="_blank">
-                Consent Form
-            </a>
-
-            <a href="calibration.html?force=true">
-                Recalibrate
-            </a>
-        </div>
-
     </div>
 
     <p class="eye-tracking-note">* To skip eye-tracking calibration, click <em>"Continue without eye tracking"</em> when prompted.</p>
