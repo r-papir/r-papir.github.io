@@ -441,10 +441,50 @@
         //   ego3Cycle             : [ [dx,dy], ... ] only if the level uses ego 3
         //   colors                : { ego1, ego2, ego3? }
         //
-        // NOTE: the mechanic was just rewritten from mouse-click to keyboard.
-        // The cycles below are placeholders carried over from the old design
-        // and will be respecified level by level.
+        // NOTE: the mechanic was rewritten from mouse-click to keyboard. Level 0
+        // and level 1 are specified for the new mechanic; the cycles in the
+        // remaining levels are placeholders carried over from the old design and
+        // will be respecified level by level.
         // ---------------------------------------------------------------
+
+        function level0() {
+            // Tutorial level (shown first). The Left arrow key is the only key
+            // that does anything here: it walks ego 1 (lime) along a zig-zag
+            // staircase. ego 2 (grey) is FIXED - it has no cycle, so the Right
+            // arrow does nothing. There is no ego 3.
+            //
+            // ego 1 starts in the top-left corner and steps one cell per Left
+            // press, alternating right, down, right, down...:
+            //   (1,1)->(2,1)->(2,2)->(3,2)->(3,3)->(4,3)->(4,4)->(5,4)->(5,5)
+            // The 9th press sends it from the bottom-right corner (5,5) straight
+            // back to (1,1) (delta [-4,-4]) and the staircase repeats.
+            //
+            // ego 2 sits on (4,4), the 6th cell of the path, so the player wins
+            // by pressing Left six times.
+            return {
+                id: 0,
+                name: "Level 0",
+                isPlayable: true,
+                ego1Start: { x: 1, y: 1 },
+                ego2Start: { x: 4, y: 4 },
+                ego1Cycle: [
+                    [1, 0],
+                    [0, 1],
+                    [1, 0],
+                    [0, 1],
+                    [1, 0],
+                    [0, 1],
+                    [1, 0],
+                    [0, 1],
+                    [-4, -4]
+                ],
+                ego2Cycle: [],
+                colors: {
+                    ego1: '#BBCC33',  // lime
+                    ego2: '#D3D3D3'   // grey
+                }
+            };
+        }
 
         function level1() {
             // Grid reference (x,y), x = col 1-5, y = row 1-5. Center = (3,3).
@@ -820,6 +860,14 @@
             return matrix;
         }
 
+        // The level number to record in the data: the current level's id.
+        // Level 0 is the tutorial, then 1..6. Falls back to the raw index once
+        // every level is complete (levels[currentLevelIndex] is undefined then).
+        function currentLevelId() {
+            const lvl = levels[currentLevelIndex];
+            return lvl ? lvl.id : currentLevelIndex;
+        }
+
         function logEvent(outcome, detail) {
             // outcome: 'advance_cycle' | 'win' | 'skip_level'
             // detail (optional, for key-press events):
@@ -831,7 +879,7 @@
             detail = detail || {};
             sessionData.events.push({
                 timestamp: new Date().toISOString(),
-                level: currentLevelIndex + 1,
+                level: currentLevelId(),
                 key: detail.key || null,               // 'ArrowLeft' | 'ArrowRight' | 'ArrowDown' | null
                 piece: detail.piece || null,           // 'ego1' | 'ego2' | 'ego3' | null
                 outcome: outcome,
@@ -1006,6 +1054,7 @@
         if (!window.__puzzleDUnauthorized) {
 
         levels = [
+            level0(),
             level1(),
             level2(),
             level3(),
@@ -1037,7 +1086,7 @@
             gameName: 'Game D',
             getGameState: function() {
                 return {
-                    level: currentLevelIndex + 1,
+                    level: currentLevelId(),
                     ego1Pos: { ...gameState.ego1Pos },
                     ego2Pos: { ...gameState.ego2Pos },
                     ego3Pos: gameState.ego3Pos ? { ...gameState.ego3Pos } : null,
