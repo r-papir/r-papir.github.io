@@ -153,6 +153,24 @@
             color: #ffffff;
         }
 
+        /* Move counter - tucked under the Skip Level button in the top-left.
+           Shown on the numbered levels (1+), hidden on the level-0 tutorial
+           and once the game is complete. */
+        #move-counter {
+            position: fixed;
+            top: 90px;
+            left: 20px;
+            padding: 10px 22px;
+            font-size: 16px;
+            font-family: 'Trebuchet MS', monospace;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            border: 3px solid #1a1a1a;
+            border-radius: 8px;
+            z-index: 1000;
+            display: none;
+        }
+
         .cell {
             width: 140px;
             height: 140px;
@@ -323,6 +341,7 @@
     </div>
     <button id="restart-button">Start Over</button>
     <button id="skip-button">Skip Level</button>
+    <div id="move-counter">Moves: 0</div>
     <button id="download-button">Download Data</button>
 
     <script src="webgazer.js"></script>
@@ -702,10 +721,23 @@
             instructionsElement.style.display = 'block';
 
             renderGrid();
+            updateMoveCounter();
 
             const gridElement = document.getElementById('grid');
             gridElement.classList.remove('fade-out');
             instructionsElement.classList.remove('fade-out');
+        }
+
+        // Move counter (top-left, under the Skip Level button). Visible only on
+        // the numbered levels - hidden on the level-0 tutorial and after the
+        // game is complete. Shows gameState.pressCount (arrow-key presses that
+        // moved a piece this level), which resets with each level.
+        function updateMoveCounter() {
+            const el = document.getElementById('move-counter');
+            if (!el) return;
+            const level = levels[currentLevelIndex];
+            el.style.display = (level && level.id >= 1) ? 'block' : 'none';
+            el.textContent = 'Moves: ' + gameState.pressCount;
         }
 
         function renderGrid() {
@@ -803,6 +835,7 @@
             gameState.pressCount++;
 
             renderGrid();
+            updateMoveCounter();
 
             if (isWin) handleWin();
         }
@@ -828,6 +861,7 @@
                     instructionsElement.classList.remove('fade-out');
                     document.getElementById('skip-button').style.display = 'none';
                     document.getElementById('restart-button').style.display = 'block';
+                    updateMoveCounter();
                     handleGameComplete();
                     showCompletionMessage('D');
                 }
@@ -974,6 +1008,7 @@
                     instructionsElement.classList.remove('fade-out');
                     document.getElementById('skip-button').style.display = 'none';
                     document.getElementById('restart-button').style.display = 'block';
+                    updateMoveCounter();
                     handleGameComplete();
                     showCompletionMessage('D');
                 }
