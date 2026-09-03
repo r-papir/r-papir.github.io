@@ -489,42 +489,39 @@
         function level1() {
             // Grid reference (x,y), x = col 1-5, y = row 1-5. Center = (3,3).
             //
-            // ego 1 (pink) is driven by the Left arrow key; ego 2 (teal) by the
-            // Right arrow key. Both start in the center, so ego 2 is hidden
-            // under ego 1 at the start. No ego 3 in this level, so the Down
-            // arrow does nothing here.
+            // ego 1 (pink, Left arrow) and ego 2 (teal, Right arrow) each walk a
+            // fixed 4-cell diamond, one cell per press, returning to their own
+            // start every 4 presses. No ego 3, so the Down arrow does nothing.
             //
-            // ego 1 walks a counter-clockwise diamond around the top of the
-            // grid, returning to the center every 4 Left presses:
-            //   (3,3) -> (4,2) -> (3,1) -> (2,2) -> (3,3)
+            // ego 1 - counter-clockwise diamond, starts at (4,2):
+            //   (4,2) -> (3,1) -> (2,2) -> (3,3) -> (4,2)
             //
-            // ego 2 is the point-reflection of ego 1 through the center: while
-            // ego 1 is at (x,y), the intended matching ego 2 cell is (6-x,6-y).
-            // So ego 2's cycle is ego 1's cycle with every delta negated, which
-            // sends it clockwise around the BOTTOM of the grid, returning to the
-            // center every 4 Right presses:
-            //   (3,3) -> (2,4) -> (3,5) -> (4,4) -> (3,3)
+            // ego 2 - the point-reflection of ego 1's diamond through the center
+            // (every cell (x,y) mirrored to (6-x,6-y)), traversed clockwise,
+            // starts at (4,4):
+            //   (4,4) -> (3,3) -> (2,4) -> (3,5) -> (4,4)
             //
-            // The only cell both pieces ever occupy is the center, so they can
-            // only converge (win) there - when Left and Right have each been
-            // pressed a matching multiple of 4 times.
+            // The two diamonds share only the center (3,3), so that is the only
+            // win cell - reached when the Left and Right press counts line up to
+            // put both pieces on (3,3) at the same time. The starts (4,2) and
+            // (4,4) differ, so the pieces do not start overlapping.
             return {
                 id: 1,
                 name: "Level 1",
                 isPlayable: true,
-                ego1Start: { x: 3, y: 3 },
-                ego2Start: { x: 3, y: 3 },
+                ego1Start: { x: 4, y: 2 },
+                ego2Start: { x: 4, y: 4 },
                 ego1Cycle: [
-                    [1, -1],
                     [-1, -1],
                     [-1, 1],
-                    [1, 1]
+                    [1, 1],
+                    [1, -1]
                 ],
                 ego2Cycle: [
+                    [-1, -1],
                     [-1, 1],
                     [1, 1],
-                    [1, -1],
-                    [-1, -1]
+                    [1, -1]
                 ],
                 colors: {
                     ego1: '#E491A6',  // pink
