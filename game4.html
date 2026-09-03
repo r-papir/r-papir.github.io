@@ -352,8 +352,10 @@
         //   - Press Right -> advance ego 2's movement cycle one step
         //   - Press Down  -> advance ego 3's movement cycle one step
         //   A press whose piece is absent this level, or whose cycle is empty,
-        //   does nothing. Key auto-repeat (holding a key down) is ignored:
-        //   one press is one step.
+        //   does nothing. Only one arrow key at a time: while a key is held
+        //   down, the other arrow keys are ignored until it is released. Key
+        //   auto-repeat (holding a key down) is ignored too - one press is
+        //   one step.
         //
         // Win: the level completes automatically the instant ego 1 and ego 2
         // occupy the same cell after a move. There is no click-to-win and no
@@ -653,6 +655,12 @@
         // Interaction (keyboard only)
         // ---------------------------------------------------------------
 
+        // The player may only work one arrow key at a time. While a key is held
+        // down, every other arrow key is ignored until that key is released
+        // (tracked here; keyup clears it, and a window blur clears it too so a
+        // missed keyup can't wedge the controls).
+        let heldKey = null;
+
         document.addEventListener('keydown', (e) => {
             const piece = PIECE_FOR_KEY[e.key];
             if (!piece) return;
@@ -660,12 +668,21 @@
             e.preventDefault();          // arrow keys otherwise scroll the page
 
             if (e.repeat) return;        // one press = one step; ignore auto-repeat
+            if (heldKey !== null) return; // another arrow key is still held down
+            heldKey = e.key;
+
             if (isTransitioning) return;
             if (currentLevelIndex >= levels.length) return;
             if (!gameState.isPlayable) return;
 
             movePiece(piece);
         });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === heldKey) heldKey = null;
+        });
+
+        window.addEventListener('blur', () => { heldKey = null; });
 
         // Advance one piece's movement cycle by a single step: apply the next
         // [dx,dy] delta to that piece's current position (toroidal wrap), then
