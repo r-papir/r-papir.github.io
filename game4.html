@@ -736,7 +736,72 @@
             };
         }
 
-        function level5() { return blankLevel(5); }
+        function level5() {
+            // Three-ego level. ego 1 (violet, Left), ego 2 (lime, Right) and
+            // ego 3 (teal, Down) each run a fixed closed loop; the level is won
+            // only when ALL THREE share a cell.
+            //
+            // ego 1 begins at (3,5); Left-press path:
+            //   (3,5) (3,1) (4,3) (5,3) (1,3) (2,4) -> back to (3,5)
+            //
+            // ego 2 begins at (1,1); Right-press path:
+            //   (1,1) (5,5) (4,5) (4,4) (4,3) (4,2) (4,1) (2,5) (2,4) (2,3)
+            //   (2,2) (2,1) -> back to (1,1)
+            //
+            // ego 3 begins at (5,3); Down-press path:
+            //   (5,3) (4,2) (3,2) (2,2) (1,3) (2,4) (3,4) (4,4) -> back to (5,3)
+            //
+            // The three reachable sets have exactly one cell in common - (2,4) -
+            // so that is the only win cell. (Pairwise the sets also meet:
+            // ego1&ego2 at (2,4)(4,3); ego1&ego3 at (1,3)(2,4)(5,3); ego2&ego3
+            // at (2,2)(2,4)(4,2)(4,4) - but two pieces on a cell is not a win.)
+            // The three starts differ, so there is no first-move win.
+            return {
+                id: 5,
+                name: "Level 5",
+                isPlayable: true,
+                ego1Start: { x: 3, y: 5 },
+                ego2Start: { x: 1, y: 1 },
+                ego3Start: { x: 5, y: 3 },
+                ego1Cycle: [
+                    [0, 1],
+                    [1, 2],
+                    [1, 0],
+                    [1, 0],
+                    [1, 1],
+                    [1, 1]
+                ],
+                ego2Cycle: [
+                    [-1, -1],
+                    [-1, 0],
+                    [0, -1],
+                    [0, -1],
+                    [0, -1],
+                    [0, -1],
+                    [-2, -1],
+                    [0, -1],
+                    [0, -1],
+                    [0, -1],
+                    [0, -1],
+                    [-1, 0]
+                ],
+                ego3Cycle: [
+                    [-1, -1],
+                    [-1, 0],
+                    [-1, 0],
+                    [-1, 1],
+                    [1, 1],
+                    [1, 0],
+                    [1, 0],
+                    [1, -1]
+                ],
+                colors: {
+                    ego1: '#332288',  // violet
+                    ego2: '#BBCC33',  // lime
+                    ego3: '#44AA99'   // teal
+                }
+            };
+        }
 
         // ---------------------------------------------------------------
         // Grid / rendering
