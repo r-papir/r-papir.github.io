@@ -536,6 +536,61 @@
             };
         }
 
+        function level3() {
+            // Viewing platform: the bottom-right 2x2 (columns 7-8, rows 7-8).
+            // Ego (lavender) starts at (4,5).
+            //
+            // Token 1 - hidden, orange. Loop (starting the printed cycle at
+            // its listed start (2,6)):
+            //   (2,6) -> (3,7) -> (4,6) -> (5,7) -> (4,6) -> (3,7) -> (2,6)
+            //   -> (1,7) -> repeat
+            //
+            // Token 2 - NOT hidden (alwaysVisible), magenta. Closed loop:
+            //   (7,2) -> (7,3) -> (6,3) -> (6,2) -> repeat
+            //
+            // Token 3 - hidden, yellow. Loop (starting the printed cycle at
+            // its listed start (3,3)):
+            //   (3,3) -> (3,4) -> (4,4) -> (4,3) -> (4,2) -> (3,2) -> (2,2)
+            //   -> (1,2) -> (1,3) -> (1,4) -> (2,4) -> (2,3) -> (2,2) -> (3,2)
+            //   -> repeat
+            return {
+                id: 3,
+                name: "Level 3",
+                isPlayable: true,
+                egoStart: { x: 4, y: 5 },
+                platform: rectCells(7, 7, 2, 2),
+                tokens: [
+                    {
+                        start: { x: 2, y: 6 },
+                        alwaysVisible: false,
+                        loop: [
+                            { x: 1, y: 7 }, { x: 2, y: 6 }, { x: 3, y: 7 }, { x: 4, y: 6 },
+                            { x: 5, y: 7 }, { x: 4, y: 6 }, { x: 3, y: 7 }, { x: 2, y: 6 }
+                        ],
+                        color: '#FF5F15'  // orange
+                    },
+                    {
+                        start: { x: 7, y: 2 },
+                        alwaysVisible: true,
+                        loop: [ { x: 6, y: 2 }, { x: 7, y: 2 }, { x: 7, y: 3 }, { x: 6, y: 3 } ],
+                        color: '#882255'  // magenta
+                    },
+                    {
+                        start: { x: 3, y: 3 },
+                        alwaysVisible: false,
+                        loop: [
+                            { x: 1, y: 2 }, { x: 1, y: 3 }, { x: 1, y: 4 }, { x: 2, y: 4 },
+                            { x: 2, y: 3 }, { x: 2, y: 2 }, { x: 3, y: 2 }, { x: 3, y: 3 },
+                            { x: 3, y: 4 }, { x: 4, y: 4 }, { x: 4, y: 3 }, { x: 4, y: 2 },
+                            { x: 3, y: 2 }, { x: 2, y: 2 }
+                        ],
+                        color: '#DDCC77'  // yellow
+                    }
+                ],
+                colors: { ...COLORS, ego: '#DAB1DA' }  // lavender
+            };
+        }
+
         function blankLevel(id) {
             return {
                 id: id,
@@ -1068,7 +1123,8 @@
 
         levels = [
             level1(),
-            level2()
+            level2(),
+            level3()
         ];
 
         // Per-level token loops, for the data. Each uncollected token advances
