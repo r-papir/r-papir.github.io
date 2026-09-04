@@ -20,7 +20,11 @@
 
         #game-container {
             text-align: center;
+        }
+
+        #grid-wrapper {
             position: relative;
+            display: inline-block;
         }
 
         #ripple-container {
@@ -64,7 +68,7 @@
         }
 
         #instructions {
-            margin-bottom: 20px;
+            margin-bottom: 8px;
             font-size: 18px;
             padding: 15px;
             background-color: #ffffff;
@@ -103,7 +107,7 @@
             display: none;
         }
 
-        #restart-button, #download-button, #skip-button {
+        #restart-button, #download-button, #skip-button, #energy-toggle-button {
             position: fixed;
             top: 20px;
             padding: 15px 30px;
@@ -148,28 +152,41 @@
             top: 100px;
         }
 
-        #restart-button:hover, #download-button:hover, #skip-button:hover {
+        #restart-button:hover, #download-button:hover, #skip-button:hover,
+        #energy-toggle-button:hover {
             background-color: #1a1a1a;
             color: #ffffff;
         }
 
-        /* Move counter - tucked under the Skip Level button in the top-left.
-           Shown on every level while playing, hidden once the game is
-           complete. Same style as Puzzle 4's counter. */
-        #move-counter {
-            position: fixed;
+        /* Energy-constraint toggle - sits in the move counter's old slot,
+           tucked under the Skip Level button in the top-left. Shown on every
+           level while playing, hidden once the game is complete. */
+        #energy-toggle-button {
             top: 90px;
             left: 20px;
-            padding: 10px 22px;
             font-size: 16px;
-            font-weight: 700;
-            font-family: 'Trebuchet MS', monospace;
-            background-color: #1a1a1a;
-            color: #ffffff;
-            border: 3px solid #1a1a1a;
-            border-radius: 8px;
-            z-index: 1000;
             display: none;
+        }
+
+        /* Energy bar - sits right above the grid (below the instructions),
+           spanning almost the grid's full width. Solid fill that shrinks (no
+           numbers/labels) as energy drains; hidden whenever the toggle has
+           disabled the energy constraint, or once the game is complete. */
+        #energy-bar-track {
+            margin: 0 4% 12px;
+            height: 16px;
+            background-color: #e0e0e0;
+            border: 3px solid #1a1a1a;
+            border-radius: 999px;
+            overflow: hidden;
+            display: none;
+        }
+
+        #energy-bar-fill {
+            height: 100%;
+            width: 100%;
+            background-color: #1a1a1a;
+            transition: width 0.15s ease-out;
         }
 
         .cell {
@@ -337,12 +354,15 @@
         Use the arrow keys to discover the controls, rules, and objective.
     </div>
     <div id="game-container">
-        <div id="ripple-container"></div>
-        <div id="grid"></div>
+        <div id="energy-bar-track"><div id="energy-bar-fill"></div></div>
+        <div id="grid-wrapper">
+            <div id="ripple-container"></div>
+            <div id="grid"></div>
+        </div>
     </div>
     <button id="restart-button">Start Over</button>
     <button id="skip-button">Skip Level</button>
-    <div id="move-counter">Moves: 0</div>
+    <button id="energy-toggle-button">Energy: On</button>
     <button id="download-button">Download Data</button>
 
     <script src="webgazer.js"></script>
@@ -385,15 +405,21 @@
         // it was caught, stops shifting, and shows a persistent "collected"
         // marker in both visibility modes.
         //
-        // Objective: collect every token, ideally in the fewest moves. A move
-        // counter (styled like Puzzle 4's) shows from level 1 on; it resets each
-        // level and counts only presses that move the ego. The level completes
-        // automatically once every token is collected.
+        // Energy: a bar above the grid drains one segment per move (blocked
+        // presses don't count) and resets to full each level. If
+        // it empties before every token is collected, the level restarts from
+        // scratch. A toggle button (top-left) can disable this constraint
+        // entirely - moves then cost no energy and never trigger a restart;
+        // it resets back to enabled every level.
+        //
+        // Objective: collect every token. The level completes automatically
+        // once every token is collected.
         // ===========================
 
         const BLURB = 'There are no instructions for this game, intentionally.<br>Use the arrow keys to discover the controls, rules, and objective.';
 
         const GRID_SIZE = 8;
+        const ENERGY_MAX = 50; // moves allowed per level before it restarts
         // Coordinates are 1-based: columns and rows run 1..GRID_SIZE, (1,1) is the
         // top-left cell.
 
@@ -417,6 +443,8 @@
             //                    collected, collectedAt }, ...] (1-based)
             tokens: [],
             moveCount: 0,   // ego moves this level (blocked presses excluded)
+            energyRemaining: ENERGY_MAX, // resets to ENERGY_MAX on every loadLevel
+            energyEnabled: true,         // resets to true on every loadLevel
             colors: {}
         };
 
@@ -662,6 +690,8 @@
                 };
             });
             gameState.moveCount = 0;
+            gameState.energyRemaining = ENERGY_MAX;
+            gameState.energyEnabled = true;
             gameState.colors = { ...level.colors };
 
             const instructionsElement = document.getElementById('instructions');
@@ -669,7 +699,8 @@
             instructionsElement.style.display = 'block';
 
             renderGrid();
-            updateMoveCounter();
+            updateEnergyToggleButton();
+            updateEnergyBar();
 
             const gridElement = document.getElementById('grid');
             gridElement.classList.remove('fade-out');
@@ -715,15 +746,28 @@
             document.getElementById(`cell-${e.x}-${e.y}`).style.backgroundColor = c.ego || COLORS.ego;
         }
 
-        // Move counter - under the Skip Level button (top-left). Shown on every
-        // level while playing, hidden once the game is complete (levels[
-        // currentLevelIndex] is undefined then). Displays gameState.moveCount,
-        // which resets with each level.
-        function updateMoveCounter() {
-            const el = document.getElementById('move-counter');
-            if (!el) return;
-            el.style.display = levels[currentLevelIndex] ? 'block' : 'none';
-            el.textContent = 'Moves: ' + gameState.moveCount;
+        // Energy toggle button - under the Skip Level button (top-left). Shown
+        // on every level while playing, hidden once the game is complete.
+        // Resets to "On" every time a level loads.
+        function updateEnergyToggleButton() {
+            const btn = document.getElementById('energy-toggle-button');
+            if (!btn) return;
+            btn.style.display = levels[currentLevelIndex] ? 'block' : 'none';
+            btn.textContent = 'Energy: ' + (gameState.energyEnabled ? 'On' : 'Off');
+        }
+
+        // Energy bar - sits above the grid. No numbers or labels: the fill
+        // just shrinks toward empty as gameState.energyRemaining drops.
+        // Hidden once the game is complete, or while the energy constraint is
+        // toggled off (it doesn't matter then).
+        function updateEnergyBar() {
+            const track = document.getElementById('energy-bar-track');
+            const fill = document.getElementById('energy-bar-fill');
+            if (!track || !fill) return;
+            const show = !!levels[currentLevelIndex] && gameState.energyEnabled;
+            track.style.display = show ? 'block' : 'none';
+            const pct = Math.max(0, Math.min(1, gameState.energyRemaining / ENERGY_MAX)) * 100;
+            fill.style.width = pct + '%';
         }
 
         // ---------------------------------------------------------------
@@ -746,12 +790,14 @@
 
         // Resolve one arrow-key turn:
         //   1. If the target cell is off the grid, the press is blocked - no
-        //      move, no shift, the move counter is unchanged.
-        //   2. The ego moves one cell; the move counter increments.
+        //      move, no shift, no energy spent.
+        //   2. The ego moves one cell; the move counter increments and, if the
+        //      energy constraint is enabled, energy drops by one.
         //   3. Any uncollected token now sharing the ego's cell is collected.
         //   4. Every remaining uncollected token shifts one step along its loop.
         //   5. Any token that shifted onto the ego is collected too.
-        //   6. Collecting the last token wins the level.
+        //   6. Collecting the last token wins the level. Otherwise, if energy
+        //      just ran out, the level restarts from scratch.
         function moveEgo(key, dx, dy) {
             const nx = gameState.egoPos.x + dx;
             const ny = gameState.egoPos.y + dy;
@@ -770,6 +816,9 @@
             // 2. Ego moves.
             gameState.egoPos = { x: nx, y: ny };
             gameState.moveCount++;
+            if (gameState.energyEnabled) {
+                gameState.energyRemaining = Math.max(0, gameState.energyRemaining - 1);
+            }
 
             // 3. Collect a token the ego stepped onto (before it shifts).
             let collected = collectAtEgo();
@@ -783,13 +832,26 @@
             const allCollected = gameState.tokens.length > 0 &&
                                  gameState.tokens.every(t => t.collected);
 
+            const energyDepleted = gameState.energyEnabled && gameState.energyRemaining <= 0;
+
             evt.outcome = allCollected ? 'win' : (collected > 0 ? 'collect' : 'move');
             evt.tokensAfter = gameState.tokens.map(tokenSnapshot);
 
             renderGrid();
-            updateMoveCounter();
+            updateEnergyBar();
 
-            if (allCollected) handleWin();
+            if (allCollected) {
+                handleWin();
+            } else if (energyDepleted) {
+                handleEnergyDepleted();
+            }
+        }
+
+        // Energy ran out before every token was collected - restart the
+        // current level from scratch (ego/tokens/energy reset to full).
+        function handleEnergyDepleted() {
+            logEvent('energy_depleted');
+            loadLevel(currentLevelIndex);
         }
 
         // Collect (and freeze) every uncollected token sharing the ego's cell.
@@ -847,7 +909,8 @@
                     instructionsElement.classList.remove('fade-out');
                     document.getElementById('skip-button').style.display = 'none';
                     document.getElementById('restart-button').style.display = 'block';
-                    updateMoveCounter();
+                    updateEnergyToggleButton();
+                    updateEnergyBar();
                     handleGameComplete();
                     showCompletionMessage('5');
                 }
@@ -939,7 +1002,8 @@
         }
 
         function logEvent(outcome, detail) {
-            // outcome: 'move' | 'collect' | 'blocked' | 'win' | 'skip_level'.
+            // outcome: 'move' | 'collect' | 'blocked' | 'win' | 'skip_level' |
+            // 'energy_depleted' | 'energy_enabled' | 'energy_disabled'.
             // For an ego move it is logged as 'move' up front and patched to
             // 'collect' / 'win' once the turn resolves; that same patch adds a
             // `tokensAfter` field. Every *Before field is a snapshot from BEFORE
@@ -951,6 +1015,8 @@
                 key: detail.key || null,               // 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight' | null
                 outcome: outcome,
                 moveCountBefore: gameState.moveCount,
+                energyRemainingBefore: gameState.energyRemaining,
+                energyEnabledBefore: gameState.energyEnabled,
                 egoPosBefore: { ...gameState.egoPos },
                 egoOnPlatformBefore: isOnPlatform(gameState.egoPos),
                 tokensRemainingBefore: gameState.tokens.filter(t => !t.collected).length,
@@ -969,6 +1035,18 @@
             document.getElementById('restart-button').style.display = 'none';
             document.getElementById('skip-button').style.display = 'block';
             loadLevel(currentLevelIndex);
+        });
+
+        // Energy toggle - flips whether the energy constraint applies. While
+        // disabled, energy stops draining and the level never auto-restarts
+        // from running out of moves. Does not reset the current energy value
+        // or the level; loadLevel resets both back to true/full every level.
+        document.getElementById('energy-toggle-button').addEventListener('click', () => {
+            if (currentLevelIndex >= levels.length) return;
+            gameState.energyEnabled = !gameState.energyEnabled;
+            logEvent(gameState.energyEnabled ? 'energy_enabled' : 'energy_disabled');
+            updateEnergyToggleButton();
+            updateEnergyBar();
         });
 
         // Skip button - advance to the next level without solving it. Mirrors
@@ -996,7 +1074,8 @@
                     instructionsElement.classList.remove('fade-out');
                     document.getElementById('skip-button').style.display = 'none';
                     document.getElementById('restart-button').style.display = 'block';
-                    updateMoveCounter();
+                    updateEnergyToggleButton();
+                    updateEnergyBar();
                     handleGameComplete();
                     showCompletionMessage('5');
                 }
