@@ -620,6 +620,73 @@
             };
         }
 
+        function level4() {
+            // Viewing platform: the center 2x2 (columns 4-5, rows 4-5). Ego
+            // (pink) starts at (5,8). All three tokens are hidden.
+            //
+            // Token 1 - turq. Closed 10-cell loop starting at its listed
+            // start (8,2):
+            //   (8,2) -> (7,2) -> (6,2) -> (5,2) -> (4,2) -> (3,2) -> (3,3)
+            //   -> (2,3) -> (2,4) -> (1,4) -> repeat
+            //
+            // Token 2 - magenta. Closed 9-cell loop, entered partway at its
+            // listed start (7,5):
+            //   (7,5) -> (6,8) -> (7,7) -> (8,4) -> (6,4) -> (8,6) -> (7,3)
+            //   -> (6,6) -> (8,8) -> repeat
+            //
+            // Token 3 - violet. 28-cell ping-pong loop starting at its listed
+            // start (3,5):
+            //   (3,5) -> (2,5) -> (1,5) -> (1,6) -> (1,7) -> (1,8) -> (2,8)
+            //   -> (3,8) -> (4,8) -> (4,7) -> (4,6) -> (3,6) -> (2,6) -> (2,7)
+            //   -> (3,7) -> (2,7) -> (2,6) -> (3,6) -> (4,6) -> (4,7) -> (4,8)
+            //   -> (3,8) -> (2,8) -> (1,8) -> (1,7) -> (1,6) -> (1,5) -> (2,5)
+            //   -> repeat
+            return {
+                id: 4,
+                name: "Level 4",
+                isPlayable: true,
+                egoStart: { x: 5, y: 8 },
+                platform: rectCells(4, 4, 2, 2),
+                tokens: [
+                    {
+                        start: { x: 8, y: 2 },
+                        alwaysVisible: false,
+                        loop: [
+                            { x: 8, y: 2 }, { x: 7, y: 2 }, { x: 6, y: 2 }, { x: 5, y: 2 },
+                            { x: 4, y: 2 }, { x: 3, y: 2 }, { x: 3, y: 3 }, { x: 2, y: 3 },
+                            { x: 2, y: 4 }, { x: 1, y: 4 }
+                        ],
+                        color: '#46A3BD'  // turq
+                    },
+                    {
+                        start: { x: 7, y: 5 },
+                        alwaysVisible: false,
+                        loop: [
+                            { x: 8, y: 4 }, { x: 6, y: 4 }, { x: 8, y: 6 }, { x: 7, y: 3 },
+                            { x: 6, y: 6 }, { x: 8, y: 8 }, { x: 7, y: 5 }, { x: 6, y: 8 },
+                            { x: 7, y: 7 }
+                        ],
+                        color: '#882255'  // magenta
+                    },
+                    {
+                        start: { x: 3, y: 5 },
+                        alwaysVisible: false,
+                        loop: [
+                            { x: 3, y: 5 }, { x: 2, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 6 },
+                            { x: 1, y: 7 }, { x: 1, y: 8 }, { x: 2, y: 8 }, { x: 3, y: 8 },
+                            { x: 4, y: 8 }, { x: 4, y: 7 }, { x: 4, y: 6 }, { x: 3, y: 6 },
+                            { x: 2, y: 6 }, { x: 2, y: 7 }, { x: 3, y: 7 }, { x: 2, y: 7 },
+                            { x: 2, y: 6 }, { x: 3, y: 6 }, { x: 4, y: 6 }, { x: 4, y: 7 },
+                            { x: 4, y: 8 }, { x: 3, y: 8 }, { x: 2, y: 8 }, { x: 1, y: 8 },
+                            { x: 1, y: 7 }, { x: 1, y: 6 }, { x: 1, y: 5 }, { x: 2, y: 5 }
+                        ],
+                        color: '#332288'  // violet
+                    }
+                ],
+                colors: { ...COLORS, ego: '#E89EB8' }  // pink
+            };
+        }
+
         function blankLevel(id) {
             return {
                 id: id,
@@ -1202,7 +1269,8 @@
         levels = [
             level1(),
             level2(),
-            level3()
+            level3(),
+            level4()
         ];
 
         // Per-level token loops, for the data. Each uncollected token advances
