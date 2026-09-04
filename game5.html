@@ -458,6 +458,8 @@
         //         loop          : [ { x, y }, ... ] default [start]. Cells the token
         //                                         shifts through, one per ego move,
         //                                         looping forever. Length 1 = static.
+        //         color         : string          optional per-token override of
+        //                                         colors.token while uncollected.
         //       }
         //   colors   : { ego, platform, token, collected }
         // ---------------------------------------------------------------
@@ -493,7 +495,7 @@
                 egoStart: { x: 3, y: 3 },
                 platform: rectCells(1, 6, 3, 3),
                 tokens: [ { start: { x: 6, y: 6 } } ],
-                colors: { ...COLORS, token: '#882255', collected: '#1C1C1C' }  // magenta while uncollected, charcoal once frozen
+                colors: { ...COLORS, token: '#882255', collected: '#882255' }  // magenta; no color change on collection
             };
         }
 
@@ -526,7 +528,8 @@
                     {
                         start: { x: 6, y: 6 },
                         alwaysVisible: false,
-                        loop: [ { x: 6, y: 6 }, { x: 7, y: 6 }, { x: 7, y: 7 }, { x: 6, y: 7 } ]
+                        loop: [ { x: 6, y: 6 }, { x: 7, y: 6 }, { x: 7, y: 7 }, { x: 6, y: 7 } ],
+                        color: '#BBCC33'  // lime
                     }
                 ],
                 colors: { ...COLORS }
@@ -597,6 +600,7 @@
                     loop: loop,
                     step: step,
                     alwaysVisible: !!t.alwaysVisible,
+                    color: t.color || null,
                     collected: false,
                     collectedAt: null
                 };
@@ -648,7 +652,7 @@
                 if (t.collected) {
                     cell.style.backgroundColor = c.collected || COLORS.collected;
                 } else if (t.alwaysVisible || egoOnPlatform) {
-                    cell.style.backgroundColor = c.token || COLORS.token;
+                    cell.style.backgroundColor = t.color || c.token || COLORS.token;
                 }
             }
 
