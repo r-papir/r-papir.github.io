@@ -461,15 +461,15 @@
         //         color         : string          optional per-token override of
         //                                         colors.token while uncollected.
         //       }
-        //   colors   : { ego, platform, token, collected }
+        //   colors   : { ego, platform, token } - a collected token keeps its
+        //              token color, it never changes on collection.
         // ---------------------------------------------------------------
 
         // Standard palette, reused across levels unless a level overrides it.
         const COLORS = {
             ego: '#332288',       // indigo - the player's vehicle
             platform: '#D3D3D3',  // grey   - viewing platform
-            token: '#DDCC77',     // gold   - a revealed, uncollected token
-            collected: '#44AA99'  // teal   - a collected token cell
+            token: '#DDCC77'      // gold   - a revealed token (collected or not)
         };
 
         // Every cell of the w x h rectangle whose top-left corner is (x0, y0),
@@ -495,7 +495,7 @@
                 egoStart: { x: 3, y: 3 },
                 platform: rectCells(1, 6, 3, 3),
                 tokens: [ { start: { x: 6, y: 6 } } ],
-                colors: { ...COLORS, token: '#CC6677', collected: '#CC6677' }  // rose; no color change on collection
+                colors: { ...COLORS, token: '#CC6677' }  // rose
             };
         }
 
@@ -698,16 +698,14 @@
 
             const egoOnPlatform = isOnPlatform(gameState.egoPos);
 
-            // Tokens. A collected token always shows its "collected" marker
-            // (frozen on its collection cell). An uncollected token is drawn as
-            // a token if it is alwaysVisible, or if the ego is on the platform;
-            // otherwise it is hidden and nothing is drawn.
+            // Tokens. A collected token always shows (frozen on its collection
+            // cell), keeping its original token color. An uncollected token is
+            // drawn as a token if it is alwaysVisible, or if the ego is on the
+            // platform; otherwise it is hidden and nothing is drawn.
             for (const t of gameState.tokens) {
                 const cell = document.getElementById(`cell-${t.x}-${t.y}`);
                 if (!cell) continue;
-                if (t.collected) {
-                    cell.style.backgroundColor = c.collected || COLORS.collected;
-                } else if (t.alwaysVisible || egoOnPlatform) {
+                if (t.collected || t.alwaysVisible || egoOnPlatform) {
                     cell.style.backgroundColor = t.color || c.token || COLORS.token;
                 }
             }
