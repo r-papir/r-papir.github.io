@@ -674,10 +674,10 @@
             //   (8,2) -> (7,2) -> (6,2) -> (5,2) -> (4,2) -> (3,2) -> (3,3)
             //   -> (2,3) -> (2,4) -> (1,4) -> repeat
             //
-            // Token 2 - magenta. Closed 9-cell loop, entered partway at its
+            // Token 2 - magenta. 12-cell ping-pong loop starting at its
             // listed start (7,5):
-            //   (7,5) -> (6,8) -> (7,7) -> (8,4) -> (6,4) -> (8,6) -> (7,3)
-            //   -> (6,6) -> (8,8) -> repeat
+            //   (7,5) -> (8,5) -> (8,6) -> (7,6) -> (7,7) -> (8,7) -> (8,8)
+            //   -> (7,8) -> (7,7) -> (8,7) -> (8,6) -> (7,6) -> repeat
             //
             // Token 3 - violet. 28-cell ping-pong loop starting at its listed
             // start (3,5):
@@ -707,9 +707,9 @@
                         start: { x: 7, y: 5 },
                         alwaysVisible: false,
                         loop: [
-                            { x: 8, y: 4 }, { x: 6, y: 4 }, { x: 8, y: 6 }, { x: 7, y: 3 },
-                            { x: 6, y: 6 }, { x: 8, y: 8 }, { x: 7, y: 5 }, { x: 6, y: 8 },
-                            { x: 7, y: 7 }
+                            { x: 7, y: 5 }, { x: 8, y: 5 }, { x: 8, y: 6 }, { x: 7, y: 6 },
+                            { x: 7, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 8 }, { x: 7, y: 8 },
+                            { x: 7, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }, { x: 7, y: 6 }
                         ],
                         color: '#882255'  // magenta
                     },
